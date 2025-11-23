@@ -67,8 +67,8 @@ CTPMtool/
 
 ### Routing
 - Defined in `src/App.tsx`.
-- Uses `react-router-dom`.
-- **Important**: The `basename` is set to `import.meta.env.BASE_URL` to support GitHub Pages deployment (subdirectory `/CTPMtool/`).
+- Uses `react-router-dom` with **HashRouter**.
+- **Why HashRouter?**: This is used to ensure compatibility with GitHub Pages, which doesn't support client-side routing (pushState) out of the box for SPAs. URLs will look like `/#/dashboard`.
 
 ### State Management
 - Managed by `src/store/useStore.ts` using `zustand`.
@@ -100,8 +100,8 @@ The project is configured to automatically deploy to GitHub Pages using the `gh-
 2.  Runs `gh-pages -d dist` (pushes the `dist/` folder to the `gh-pages` branch on GitHub).
 
 ### Troubleshooting Deployment
-- **Blank Page**: Usually caused by incorrect `base` path in `vite.config.ts` or missing `basename` in `src/App.tsx`.
-- **404 on Refresh**: GitHub Pages is a static host and doesn't know about client-side routes (like `/projects`). If you refresh on a sub-page, you might get a 404. *Note: This is a known limitation of SPAs on static hosts. A common workaround is using HashRouter instead of BrowserRouter if this becomes a major issue, but BrowserRouter is cleaner.*
+- **Blank Page**: Usually caused by incorrect `base` path in `vite.config.ts`.
+- **Hash URLs**: You will see `#` in the URL (e.g., `.../CTPMtool/#/`). This is normal and expected for this deployment method.
 
 ## 6. Common Tasks
 
