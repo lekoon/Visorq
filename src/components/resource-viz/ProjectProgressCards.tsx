@@ -8,7 +8,7 @@ interface ProjectProgressCardsProps {
 
 const ProjectProgressCards: React.FC<ProjectProgressCardsProps> = ({ projects }) => {
     // 模拟计算资源缺口状态
-    const getResourceStatus = (project: Project) => {
+    const getResourceStatus = (_project: Project) => {
         // 这里应该根据实际分配 vs 需求计算
         const random = Math.random();
         if (random > 0.7) return 'shortage';
@@ -25,14 +25,14 @@ const ProjectProgressCards: React.FC<ProjectProgressCardsProps> = ({ projects })
                         <div key={project.id} className="w-72 bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col">
                             <div className="flex justify-between items-start mb-2">
                                 <span className={`px-2 py-1 rounded text-xs font-bold ${project.priority === 'P0' ? 'bg-red-100 text-red-700' :
-                                        project.priority === 'P1' ? 'bg-orange-100 text-orange-700' :
-                                            'bg-blue-100 text-blue-700'
+                                    project.priority === 'P1' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-blue-100 text-blue-700'
                                     }`}>
                                     {project.priority || 'P2'}
                                 </span>
                                 <span className={`px-2 py-1 rounded-full text-xs ${project.status === 'active' ? 'bg-green-100 text-green-700' :
-                                        project.status === 'planning' ? 'bg-blue-100 text-blue-700' :
-                                            'bg-slate-100 text-slate-600'
+                                    project.status === 'planning' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-slate-100 text-slate-600'
                                     }`}>
                                     {project.status}
                                 </span>

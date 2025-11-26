@@ -16,6 +16,7 @@ const Projects: React.FC = () => {
         name: '',
         description: '',
         status: 'planning',
+        priority: 'P2',
         startDate: '',
         endDate: '',
         factors: {},
@@ -44,6 +45,7 @@ const Projects: React.FC = () => {
                 name: '',
                 description: '',
                 status: 'planning',
+                priority: 'P2',
                 startDate: '',
                 endDate: '',
                 factors: initializeFactors(),
@@ -61,7 +63,8 @@ const Projects: React.FC = () => {
             addProject({
                 ...formData,
                 id: Math.random().toString(36).substr(2, 9),
-                score: 0 // Will be calculated by store
+                score: 0, // Will be calculated by store
+                priority: formData.priority || 'P2' // 添加默认优先级
             } as Project);
         }
         setIsModalOpen(false);
