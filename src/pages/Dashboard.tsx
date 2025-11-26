@@ -3,9 +3,11 @@ import { useStore } from '../store/useStore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { TrendingUp, AlertTriangle, CheckCircle, Clock, Download, AlertCircle, DollarSign, Users } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 
 const Dashboard: React.FC = () => {
     const { projects, resourcePool } = useStore();
+    const { t } = useTranslation();
 
     // KPI Calculations
     const totalProjects = projects.length;
@@ -52,10 +54,10 @@ const Dashboard: React.FC = () => {
 
     // Status Distribution for Pie Chart
     const statusData = [
-        { name: 'Active', value: activeProjects, color: '#10b981' },
-        { name: 'Planning', value: projects.filter(p => p.status === 'planning').length, color: '#3b82f6' },
-        { name: 'On Hold', value: projects.filter(p => p.status === 'on-hold').length, color: '#f59e0b' },
-        { name: 'Completed', value: completedProjects, color: '#8b5cf6' },
+        { name: t('projects.active'), value: activeProjects, color: '#10b981' },
+        { name: t('projects.planning'), value: projects.filter(p => p.status === 'planning').length, color: '#3b82f6' },
+        { name: t('projects.onHold'), value: projects.filter(p => p.status === 'on-hold').length, color: '#f59e0b' },
+        { name: t('projects.completed'), value: completedProjects, color: '#8b5cf6' },
     ].filter(d => d.value > 0);
 
     // Resource Allocation by Type
@@ -106,15 +108,15 @@ const Dashboard: React.FC = () => {
             {/* Header with Export */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900">Executive Dashboard</h1>
-                    <p className="text-slate-500 mt-1">Real-time portfolio insights and analytics</p>
+                    <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.title')}</h1>
+                    <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
                 </div>
                 <button
                     onClick={exportToCSV}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
                 >
                     <Download size={18} />
-                    Export Report
+                    {t('common.export')}
                 </button>
             </div>
 
@@ -126,7 +128,7 @@ const Dashboard: React.FC = () => {
                             <TrendingUp size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">Total Projects</p>
+                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.totalProjects')}</p>
                             <h3 className="text-2xl font-bold text-slate-900">{totalProjects}</h3>
                         </div>
                     </div>
@@ -138,7 +140,7 @@ const Dashboard: React.FC = () => {
                             <Clock size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">Active</p>
+                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.active')}</p>
                             <h3 className="text-2xl font-bold text-slate-900">{activeProjects}</h3>
                         </div>
                     </div>
@@ -150,7 +152,7 @@ const Dashboard: React.FC = () => {
                             <CheckCircle size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">Completed</p>
+                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.completed')}</p>
                             <h3 className="text-2xl font-bold text-slate-900">{completedProjects}</h3>
                         </div>
                     </div>
@@ -162,7 +164,7 @@ const Dashboard: React.FC = () => {
                             <DollarSign size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">Avg Score</p>
+                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.avgScore')}</p>
                             <h3 className="text-2xl font-bold text-slate-900">{avgScore}</h3>
                         </div>
                     </div>
@@ -174,7 +176,7 @@ const Dashboard: React.FC = () => {
                             <AlertCircle size={24} />
                         </div>
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">Portfolio Health</p>
+                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.portfolioHealth')}</p>
                             <h3 className="text-2xl font-bold text-slate-900">{portfolioHealth}%</h3>
                         </div>
                     </div>
@@ -186,28 +188,28 @@ const Dashboard: React.FC = () => {
                 <div className="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-2xl border border-red-200">
                     <div className="flex items-center gap-3 mb-2">
                         <AlertTriangle className="text-red-600" size={24} />
-                        <h3 className="font-bold text-red-900">At Risk</h3>
+                        <h3 className="font-bold text-red-900">{t('dashboard.atRisk')}</h3>
                     </div>
                     <p className="text-3xl font-bold text-red-600">{atRiskProjects}</p>
-                    <p className="text-sm text-red-700 mt-1">Projects due in &lt; 30 days</p>
+                    <p className="text-sm text-red-700 mt-1">{t('dashboard.projectsDueSoon')}</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-2xl border border-yellow-200">
                     <div className="flex items-center gap-3 mb-2">
                         <TrendingUp className="text-yellow-600" size={24} />
-                        <h3 className="font-bold text-yellow-900">High Priority</h3>
+                        <h3 className="font-bold text-yellow-900">{t('dashboard.highPriority')}</h3>
                     </div>
                     <p className="text-3xl font-bold text-yellow-600">{highPriorityProjects}</p>
-                    <p className="text-sm text-yellow-700 mt-1">Score &gt; 8.0</p>
+                    <p className="text-sm text-yellow-700 mt-1">{t('dashboard.scoreGt8')}</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-2xl border border-blue-200">
                     <div className="flex items-center gap-3 mb-2">
                         <Users className="text-blue-600" size={24} />
-                        <h3 className="font-bold text-blue-900">Resource Utilization</h3>
+                        <h3 className="font-bold text-blue-900">{t('dashboard.resourceUtilization')}</h3>
                     </div>
                     <p className="text-3xl font-bold text-blue-600">{resourceUtilization}%</p>
-                    <p className="text-sm text-blue-700 mt-1">{allocatedResources} / {totalResourceCapacity} allocated</p>
+                    <p className="text-sm text-blue-700 mt-1">{allocatedResources} / {totalResourceCapacity} {t('dashboard.allocated')}</p>
                 </div>
             </div>
 
@@ -215,7 +217,7 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Score Distribution */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">Project Priority Scores</h3>
+                    <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.projectPriorityScores')}</h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={scoreDistribution}>
@@ -238,7 +240,7 @@ const Dashboard: React.FC = () => {
 
                 {/* Status Distribution Pie */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">Project Status</h3>
+                    <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.projectStatus')}</h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -265,17 +267,17 @@ const Dashboard: React.FC = () => {
 
             {/* Resource Allocation Table */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">Resource Allocation Analysis</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.resourceAllocationAnalysis')}</h3>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th className="p-4 text-left font-semibold text-slate-600">Resource Type</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">Total Capacity</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">Allocated</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">Available</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">Utilization</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">Status</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.resourceType')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.totalCapacity')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.allocated')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.available')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.utilization')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.status')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -300,7 +302,7 @@ const Dashboard: React.FC = () => {
                                         </td>
                                         <td className="p-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${util > 90 ? 'bg-red-100 text-red-700' : util > 70 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                                                {util > 90 ? 'Overloaded' : util > 70 ? 'High' : 'Healthy'}
+                                                {util > 90 ? t('dashboard.overloaded') : util > 70 ? t('dashboard.high') : t('dashboard.healthy')}
                                             </span>
                                         </td>
                                     </tr>
@@ -313,7 +315,7 @@ const Dashboard: React.FC = () => {
 
             {/* Top Projects List */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">Top Priority Projects</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.topPriorityProjects')}</h3>
                 <div className="space-y-4">
                     {topProjects.map((p, i) => (
                         <div key={p.id} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-colors border border-slate-100">
@@ -328,7 +330,7 @@ const Dashboard: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="text-right">
-                                    <p className="text-sm text-slate-500">Score</p>
+                                    <p className="text-sm text-slate-500">{t('projects.score')}</p>
                                     <p className="text-xl font-bold text-blue-600">{p.score.toFixed(2)}</p>
                                 </div>
                                 <span className={`px-3 py-1 rounded-lg text-xs font-bold ${p.status === 'active' ? 'bg-green-100 text-green-700' :

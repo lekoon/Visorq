@@ -1,73 +1,393 @@
-# React + TypeScript + Vite
+# CTPM Tool - Comprehensive Task & Project Management
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<div align="center">
 
-Currently, two official plugins are available:
+![CTPM Tool](https://img.shields.io/badge/CTPM-v1.0.0-blue)
+![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-3178C6?logo=typescript)
+![Vite](https://img.shields.io/badge/Vite-6.0.7-646CFF?logo=vite)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**一个功能完整的企业级项目组合管理系统**
 
-## React Compiler
+[功能特性](#功能特性) • [快速开始](#快速开始) • [文档](#文档) • [部署](#部署) • [贡献](#贡献)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+</div>
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📋 目录
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- [项目简介](#项目简介)
+- [功能特性](#功能特性)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [项目结构](#项目结构)
+- [核心功能](#核心功能)
+- [文档](#文档)
+- [部署](#部署)
+- [开发指南](#开发指南)
+- [常见问题](#常见问题)
+- [贡献](#贡献)
+- [许可证](#许可证)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🎯 项目简介
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+CTPM Tool 是一个现代化的项目组合管理系统，旨在帮助企业和团队高效管理项目、资源和成本。系统提供了直观的可视化界面、智能的资源分配、实时的冲突检测和全面的成本分析功能。
+
+### 为什么选择 CTPM Tool？
+
+- ✨ **直观易用**: 拖拽式操作，零学习成本
+- 🚀 **功能完整**: 涵盖项目管理全生命周期
+- 📊 **数据可视化**: 丰富的图表和仪表盘
+- 🌍 **国际化**: 支持中英文切换
+- 🎨 **现代设计**: 支持暗黑模式，响应式布局
+- ⚡ **高性能**: 基于 React 18 和 Vite 构建
+
+## ✨ 功能特性
+
+### 项目管理
+- 📝 项目CRUD操作
+- 🎯 多因子优先级评分
+- 📊 项目状态跟踪
+- 📋 项目模板系统
+- 🔍 高级搜索和筛选
+- 📦 批量操作
+
+### 资源管理
+- 👥 资源池管理
+- 📅 容量规划
+- 🗓️ 资源甘特图
+- 📈 利用率分析
+- ⚠️ 冲突检测
+- 🎯 技能匹配
+- 🔥 资源热力图
+- 🎨 可视化仪表盘
+
+### 成本分析
+- 💰 项目成本计算
+- 📊 预算控制
+- 💡 优化建议
+- 📈 成本趋势分析
+
+### 个人工作台
+- 👤 个人信息展示
+- 📅 本周工作概览
+- ⏱️ 时间线视图
+- ⚠️ 超载预警
+
+### 系统功能
+- 🔐 用户认证和权限
+- 🌐 中英文切换
+- 🌙 暗黑模式
+- 🔔 通知系统
+- 💾 数据备份/恢复
+- 📤 数据导出（CSV/PDF）
+- ⌨️ 键盘快捷键
+
+## 🛠️ 技术栈
+
+### 核心框架
+- **React 18.3.1** - UI 框架
+- **TypeScript 5.6.2** - 类型安全
+- **Vite 6.0.7** - 构建工具
+
+### 状态管理
+- **Zustand 5.0.2** - 轻量级状态管理
+
+### 路由
+- **React Router 7.1.1** - 客户端路由
+
+### UI 组件
+- **Tailwind CSS 3.4.17** - 样式框架
+- **Lucide React** - 图标库
+- **Recharts** - 图表库
+- **@dnd-kit** - 拖拽功能
+
+### 工具库
+- **i18next** - 国际化
+- **date-fns** - 日期处理
+- **clsx** - 类名管理
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Node.js >= 16.0.0
+- npm >= 8.0.0
+
+### 安装
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/CTPMtool.git
+
+# 进入项目目录
+cd CTPMtool
+
+# 安装依赖
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 开发
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# 启动开发服务器
+npm run dev
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 访问 http://localhost:5173
 ```
+
+### 构建
+
+```bash
+# 构建生产版本
+npm run build
+
+# 预览生产构建
+npm run preview
+```
+
+### 默认账号
+
+```
+用户名: admin
+密码: admin123
+```
+
+## 📁 项目结构
+
+```
+CTPMtool/
+├── src/
+│   ├── components/          # 可复用组件
+│   │   ├── resource-viz/   # 资源可视化组件
+│   │   ├── Layout.tsx
+│   │   ├── ErrorBoundary.tsx
+│   │   └── ...
+│   ├── pages/              # 页面组件
+│   │   ├── Dashboard.tsx
+│   │   ├── Projects.tsx
+│   │   ├── Resources.tsx
+│   │   ├── UserWorkbench.tsx
+│   │   └── ...
+│   ├── store/              # Zustand 状态管理
+│   │   └── useStore.ts
+│   ├── utils/              # 工具函数
+│   │   ├── conflictDetection.ts
+│   │   ├── skillMatching.ts
+│   │   ├── costAnalysis.ts
+│   │   └── ...
+│   ├── i18n/               # 国际化配置
+│   │   ├── zh.ts
+│   │   └── en.ts
+│   ├── types/              # TypeScript 类型定义
+│   │   └── index.ts
+│   ├── hooks/              # 自定义 Hooks
+│   │   └── useDarkMode.ts
+│   ├── App.tsx
+│   └── main.tsx
+├── public/                 # 静态资源
+├── docs/                   # 文档
+├── package.json
+├── vite.config.ts
+├── tailwind.config.js
+└── tsconfig.json
+```
+
+## 🎨 核心功能
+
+### 1. 资源可视化仪表盘
+
+<details>
+<summary>点击查看详情</summary>
+
+- **关键指标卡**: 项目总数、超载人数、P0资源满足率、人天投入
+- **项目进度快照**: 横向滚动卡片展示所有项目状态
+- **资源热力图**: 周维度展示每个成员的工作负载
+
+</details>
+
+### 2. 拖拽式资源分配
+
+<details>
+<summary>点击查看详情</summary>
+
+- 从资源池拖拽成员到项目
+- 实时冲突检测和警告
+- 撤销/重做支持
+- 复制上周分配数据
+
+</details>
+
+### 3. 智能技能匹配
+
+<details>
+<summary>点击查看详情</summary>
+
+- 技能缺口分析
+- 自动资源推荐
+- 匹配度评分
+- 技能趋势分析
+
+</details>
+
+### 4. 成本优化分析
+
+<details>
+<summary>点击查看详情</summary>
+
+- 项目成本计算
+- 预算控制
+- 超支预警
+- 优化建议
+
+</details>
+
+## 📚 文档
+
+- [部署指南](./部署指南.md)
+- [项目总结](./项目总结.md)
+- [第一阶段报告](./第一阶段功能完成报告.md)
+- [第二阶段报告](./第二阶段功能完成报告.md)
+- [第三阶段报告](./第三阶段功能完成报告.md)
+- [第四阶段报告](./第四阶段功能完成报告.md)
+- [第五阶段报告](./第五阶段功能完成报告.md)
+- [资源可视化报告](./资源可视化功能完成报告.md)
+- [第六阶段报告](./第六阶段功能完成报告.md)
+
+## 🚢 部署
+
+### Docker 部署
+
+```bash
+# 构建镜像
+docker build -t ctpm-tool .
+
+# 运行容器
+docker run -d -p 8080:80 ctpm-tool
+```
+
+### Nginx 部署
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /path/to/dist;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+### 云平台部署
+
+```bash
+# Vercel
+vercel --prod
+
+# Netlify
+netlify deploy --prod --dir=dist
+```
+
+详细部署说明请参考 [部署指南](./部署指南.md)。
+
+## 💻 开发指南
+
+### 代码规范
+
+项目使用 ESLint 和 Prettier 进行代码规范检查：
+
+```bash
+# 运行 lint 检查
+npm run lint
+
+# 自动修复
+npm run lint:fix
+```
+
+### 提交规范
+
+使用 Conventional Commits 规范：
+
+```
+feat: 新功能
+fix: 修复bug
+docs: 文档更新
+style: 代码格式调整
+refactor: 重构
+test: 测试相关
+chore: 构建/工具链相关
+```
+
+### 分支策略
+
+- `main`: 生产分支
+- `develop`: 开发分支
+- `feature/*`: 功能分支
+- `hotfix/*`: 紧急修复分支
+
+## ❓ 常见问题
+
+<details>
+<summary>如何重置数据？</summary>
+
+进入设置页面，点击"清除所有数据"按钮。
+
+</details>
+
+<details>
+<summary>如何备份数据？</summary>
+
+进入设置页面，点击"备份数据"按钮下载备份文件。
+
+</details>
+
+<details>
+<summary>支持哪些浏览器？</summary>
+
+支持所有现代浏览器（Chrome, Firefox, Safari, Edge）。不支持 IE11。
+
+</details>
+
+<details>
+<summary>数据存储在哪里？</summary>
+
+数据存储在浏览器的 localStorage 中。建议定期备份数据。
+
+</details>
+
+## 🤝 贡献
+
+欢迎贡献代码、报告问题或提出建议！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+## 🙏 致谢
+
+- [React](https://reactjs.org/)
+- [Vite](https://vitejs.dev/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Zustand](https://github.com/pmndrs/zustand)
+- [Recharts](https://recharts.org/)
+- [Lucide Icons](https://lucide.dev/)
+
+---
+
+<div align="center">
+
+**[⬆ 回到顶部](#ctpm-tool---comprehensive-task--project-management)**
+
+Made with ❤️ by Antigravity Team
+
+</div>

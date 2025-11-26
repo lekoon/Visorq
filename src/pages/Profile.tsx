@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { User, Lock, Save } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const Profile: React.FC = () => {
     const { user, updateUser } = useStore();
+    const { t } = useTranslation();
     const [name, setName] = useState(user?.name || '');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
@@ -11,13 +13,13 @@ const Profile: React.FC = () => {
     const handleUpdate = (e: React.FormEvent) => {
         e.preventDefault();
         updateUser({ name });
-        setMessage('Profile updated successfully!');
+        setMessage(t('profile.success'));
         setTimeout(() => setMessage(''), 3000);
     };
 
     return (
         <div className="max-w-2xl mx-auto">
-            <h1 className="text-3xl font-bold text-slate-900 mb-8">My Profile</h1>
+            <h1 className="text-3xl font-bold text-slate-900 mb-8">{t('profile.title')}</h1>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-8 border-b border-slate-100 flex items-center gap-6">
@@ -26,14 +28,14 @@ const Profile: React.FC = () => {
                     </div>
                     <div>
                         <h2 className="text-2xl font-bold text-slate-900">{user?.username}</h2>
-                        <p className="text-slate-500">{user?.role === 'admin' ? 'Administrator' : 'Standard User'}</p>
+                        <p className="text-slate-500">{user?.role === 'admin' ? t('profile.administrator') : t('profile.standardUser')}</p>
                         <p className="text-sm text-slate-400 mt-1">ID: {user?.id}</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleUpdate} className="p-8 space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Display Name</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('profile.displayName')}</label>
                         <div className="relative">
                             <User className="absolute left-3 top-3 text-slate-400" size={20} />
                             <input
@@ -46,14 +48,14 @@ const Profile: React.FC = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">{t('profile.newPassword')}</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-3 text-slate-400" size={20} />
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Leave blank to keep current"
+                                placeholder={t('profile.passwordPlaceholder')}
                                 className="w-full pl-10 p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
@@ -71,7 +73,7 @@ const Profile: React.FC = () => {
                             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-blue-600/20"
                         >
                             <Save size={20} />
-                            Save Changes
+                            {t('profile.saveChanges')}
                         </button>
                     </div>
                 </form>

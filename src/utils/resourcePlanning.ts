@@ -110,3 +110,81 @@ export const calculateResourceLoad = (
         };
     });
 };
+
+/**
+ * Detect resource conflicts based on calculated load
+ */
+export const detectResourceConflicts = (
+    resourceLoads: ResourceLoad[]
+): import('../types').ResourceConflict[] => {
+    const conflicts: import('../types').ResourceConflict[] = [];
+
+    resourceLoads.forEach(load => {
+        Object.entries(load.allocations).forEach(([period, data]) => {
+            if (data.total > load.capacity) {
+                conflicts.push({
+                    resourceId: load.resourceId,
+                    resourceName: load.resourceName,
+                    period,
+                    capacity: load.capacity,
+                    allocated: data.total,
+                    overallocation: data.total - load.capacity,
+                    conflictingProjects: data.projects.map(p => ({
+                        projectId: p.id,
+                        projectName: p.name,
+                        allocation: p.amount
+                    }))
+                });
+            }
+        });
+    });
+
+    return conflicts.sort((a, b) => b.overallocation - a.overallocation);
+};
+
+/**
+ * Calculate skill match score between requirement and resource
+ */
+export const calculateSkillMatchScore = (
+    requiredSkills: string[],
+    resourceSkills: import('../types').Skill[] = []
+): { score: number; matched: string[]; missing: string[] } => {
+    if (!requiredSkills || requiredSkills.length === 0) {
+        return { score: 100, matched: [], missing: [] };
+    }
+
+    if (!resourceSkills || resourceSkills.length === 0) {
+        return { score: 0, matched: [], missing: requiredSkills };
+    }
+
+    const matched: string[] = [];
+    const missing: string[] = [];
+
+    requiredSkills.forEach(reqSkillId => {
+        const hasSkill = resourceSkills.some(s => s.id === reqSkillId);
+        if (hasSkill) {
+            matched.push(reqSkillId);
+        } else {
+            missing.push(reqSkillId);
+        }
+    });
+
+    const score = (matched.length / requiredSkills.length) * 100;
+
+    return { score, matched, missing };
+};
+
+/**
+ * Find best matching resources for a requirement
+ */
+export const findBestMatchingResources = (
+    requirement: import('../types').ResourceRequirement,
+    resources: ResourcePoolItem[]
+): { resource: ResourcePoolItem; match: ReturnType<typeof calculateSkillMatchScore> }[] => {
+    return resources
+        .map(resource => ({
+            resource,
+            match: calculateSkillMatchScore(requirement.requiredSkills || [], resource.skills)
+        }))
+        .sort((a, b) => b.match.score - a.match.score);
+};

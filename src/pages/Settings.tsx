@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { Plus, Trash2, Download, Upload, AlertTriangle, Database, Shield } from 'lucide-react';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 
 const Settings: React.FC = () => {
     const { factorDefinitions, addFactor, updateFactor, deleteFactor, recalculateScores, projects, resourcePool } = useStore();
+    const { t } = useTranslation();
     const [newFactorName, setNewFactorName] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -87,14 +89,14 @@ const Settings: React.FC = () => {
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900">System Configuration</h1>
-                    <p className="text-slate-500 mt-1">Manage scoring factors and data</p>
+                    <h1 className="text-3xl font-bold text-slate-900">{t('settings.title')}</h1>
+                    <p className="text-slate-500 mt-1">{t('settings.subtitle')}</p>
                 </div>
                 <button
                     onClick={recalculateScores}
                     className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl font-bold hover:bg-blue-200 transition-colors"
                 >
-                    Recalculate All Scores
+                    {t('settings.recalculate')}
                 </button>
             </div>
 
@@ -103,27 +105,27 @@ const Settings: React.FC = () => {
                 <div className="mb-6">
                     <div className="flex items-center gap-3 mb-2">
                         <Database className="text-blue-600" size={24} />
-                        <h2 className="text-xl font-bold text-slate-800">Data Management</h2>
+                        <h2 className="text-xl font-bold text-slate-800">{t('settings.dataManagement')}</h2>
                     </div>
-                    <p className="text-slate-500">Backup, restore, and manage your system data</p>
+                    <p className="text-slate-500">{t('settings.dataDesc')}</p>
                 </div>
 
                 {/* Data Statistics */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <p className="text-sm text-blue-600 font-medium">Projects</p>
+                        <p className="text-sm text-blue-600 font-medium">{t('settings.projects')}</p>
                         <p className="text-2xl font-bold text-blue-700">{dataStats.projects}</p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-                        <p className="text-sm text-green-600 font-medium">Resources</p>
+                        <p className="text-sm text-green-600 font-medium">{t('settings.resources')}</p>
                         <p className="text-2xl font-bold text-green-700">{dataStats.resources}</p>
                     </div>
                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                        <p className="text-sm text-purple-600 font-medium">Factors</p>
+                        <p className="text-sm text-purple-600 font-medium">{t('settings.factors')}</p>
                         <p className="text-2xl font-bold text-purple-700">{dataStats.factors}</p>
                     </div>
                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-                        <p className="text-sm text-orange-600 font-medium">Storage</p>
+                        <p className="text-sm text-orange-600 font-medium">{t('settings.storage')}</p>
                         <p className="text-2xl font-bold text-orange-700">{(dataStats.storageSize / 1024).toFixed(1)} KB</p>
                     </div>
                 </div>
@@ -133,27 +135,27 @@ const Settings: React.FC = () => {
                     <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
                         <Shield className="text-blue-600" size={24} />
                         <div className="flex-1">
-                            <h3 className="font-bold text-blue-900">Backup Data</h3>
-                            <p className="text-sm text-blue-700">Download a complete backup of all your data</p>
+                            <h3 className="font-bold text-blue-900">{t('settings.backup')}</h3>
+                            <p className="text-sm text-blue-700">{t('settings.backupDesc')}</p>
                         </div>
                         <button
                             onClick={handleBackup}
                             className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-lg"
                         >
                             <Download size={18} />
-                            Backup Now
+                            {t('settings.backupNow')}
                         </button>
                     </div>
 
                     <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200">
                         <Upload className="text-green-600" size={24} />
                         <div className="flex-1">
-                            <h3 className="font-bold text-green-900">Restore Data</h3>
-                            <p className="text-sm text-green-700">Upload a backup file to restore your data</p>
+                            <h3 className="font-bold text-green-900">{t('settings.restore')}</h3>
+                            <p className="text-sm text-green-700">{t('settings.restoreDesc')}</p>
                         </div>
                         <label className="px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors cursor-pointer flex items-center gap-2 shadow-lg">
                             <Upload size={18} />
-                            Restore
+                            {t('settings.restore')}
                             <input
                                 type="file"
                                 accept=".json"
@@ -166,9 +168,9 @@ const Settings: React.FC = () => {
                     <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-xl border border-red-200">
                         <AlertTriangle className="text-red-600" size={24} />
                         <div className="flex-1">
-                            <h3 className="font-bold text-red-900">Clear All Data</h3>
+                            <h3 className="font-bold text-red-900">{t('settings.clearData')}</h3>
                             <p className="text-sm text-red-700">
-                                {showClearConfirm ? '⚠️ Click again to confirm deletion' : 'Permanently delete all data (cannot be undone)'}
+                                {showClearConfirm ? t('settings.confirmClear') : t('settings.clearDesc')}
                             </p>
                         </div>
                         <button
@@ -176,7 +178,7 @@ const Settings: React.FC = () => {
                             className={`px-6 py-3 font-bold rounded-xl transition-colors flex items-center gap-2 shadow-lg ${showClearConfirm ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                         >
                             <Trash2 size={18} />
-                            {showClearConfirm ? 'Confirm Delete' : 'Clear Data'}
+                            {showClearConfirm ? t('settings.confirmDelete') : t('settings.clearData')}
                         </button>
                     </div>
                 </div>
@@ -186,11 +188,11 @@ const Settings: React.FC = () => {
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
                 <div className="mb-6 flex items-center justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Scoring Factors</h2>
-                        <p className="text-slate-500">Define the criteria used to prioritize projects</p>
+                        <h2 className="text-xl font-bold text-slate-800">{t('settings.scoringFactors')}</h2>
+                        <p className="text-slate-500">{t('settings.scoringDesc')}</p>
                     </div>
                     <div className={`px-4 py-2 rounded-xl font-bold ${totalWeight === 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                        Total Weight: {totalWeight}%
+                        {t('settings.totalWeight')}: {totalWeight}%
                     </div>
                 </div>
 
@@ -226,7 +228,7 @@ const Settings: React.FC = () => {
                 <div className="mt-6 pt-6 border-t border-slate-100 flex gap-4">
                     <input
                         type="text"
-                        placeholder="New Factor Name (e.g. Sustainability)"
+                        placeholder={t('settings.newFactorPlaceholder')}
                         className="flex-1 p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={newFactorName}
                         onChange={(e) => setNewFactorName(e.target.value)}
@@ -238,7 +240,7 @@ const Settings: React.FC = () => {
                         className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                     >
                         <Plus size={20} />
-                        Add Factor
+                        {t('settings.addFactor')}
                     </button>
                 </div>
             </div>
