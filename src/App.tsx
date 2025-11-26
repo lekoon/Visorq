@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import Layout from './components/Layout';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import Analysis from './pages/Analysis';
@@ -13,6 +14,8 @@ import UserWorkbench from './pages/UserWorkbench';
 import ProjectDetail from './pages/ProjectDetail';
 import AIDecisionDashboard from './pages/AIDecisionDashboard';
 import AdvancedReports from './pages/AdvancedReports';
+import TemplateManager from './pages/TemplateManager';
+import BatchImport from './pages/BatchImport';
 import ErrorBoundary from './components/ErrorBoundary';
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 
@@ -32,14 +35,16 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
 
+          {/* Home Landing Page */}
           <Route path="/" element={
             <ProtectedRoute>
               <Layout>
-                <Dashboard />
+                <Home />
               </Layout>
             </ProtectedRoute>
           } />
 
+          {/* Project Management */}
           <Route path="/projects" element={
             <ProtectedRoute>
               <Layout>
@@ -47,7 +52,29 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
+          <Route path="/projects/:projectId" element={
+            <ProtectedRoute>
+              <Layout>
+                <ProjectDetail />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/projects/templates" element={
+            <ProtectedRoute>
+              <Layout>
+                <TemplateManager />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/projects/import" element={
+            <ProtectedRoute>
+              <Layout>
+                <BatchImport />
+              </Layout>
+            </ProtectedRoute>
+          } />
 
+          {/* Resource Management */}
           <Route path="/resources" element={
             <ProtectedRoute>
               <Layout>
@@ -56,7 +83,8 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/analysis" element={
+          {/* Cost Analysis */}
+          <Route path="/cost" element={
             <ProtectedRoute>
               <Layout>
                 <Analysis />
@@ -64,6 +92,30 @@ function App() {
             </ProtectedRoute>
           } />
 
+          {/* Decision Support */}
+          <Route path="/decision" element={
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/decision/ai" element={
+            <ProtectedRoute>
+              <Layout>
+                <AIDecisionDashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/decision/reports" element={
+            <ProtectedRoute>
+              <Layout>
+                <AdvancedReports />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          {/* Other */}
           <Route path="/settings" element={
             <ProtectedRoute>
               <Layout>
@@ -71,7 +123,6 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
-
           <Route path="/profile" element={
             <ProtectedRoute>
               <Layout>
@@ -79,7 +130,6 @@ function App() {
               </Layout>
             </ProtectedRoute>
           } />
-
           <Route path="/workbench" element={
             <ProtectedRoute>
               <Layout>
@@ -88,29 +138,6 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/projects/:projectId" element={
-            <ProtectedRoute>
-              <Layout>
-                <ProjectDetail />
-              </Layout>
-            </ProtectedRoute>
-          } />
-
-          <Route path="/ai-decision" element={
-            <ProtectedRoute>
-              <Layout>
-                <AIDecisionDashboard />
-              </Layout>
-            </ProtectedRoute>
-          } />
-
-          <Route path="/reports" element={
-            <ProtectedRoute>
-              <Layout>
-                <AdvancedReports />
-              </Layout>
-            </ProtectedRoute>
-          } />
         </Routes>
       </Router>
     </ErrorBoundary>

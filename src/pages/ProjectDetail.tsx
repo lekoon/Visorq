@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { ArrowLeft, Users, DollarSign, Calendar, TrendingUp, Edit2 } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, Edit2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
@@ -94,15 +94,15 @@ const ProjectDetail: React.FC = () => {
                     <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                             <span className={`px-3 py-1 rounded text-sm font-bold ${project.priority === 'P0' ? 'bg-red-100 text-red-700' :
-                                    project.priority === 'P1' ? 'bg-orange-100 text-orange-700' :
-                                        'bg-blue-100 text-blue-700'
+                                project.priority === 'P1' ? 'bg-orange-100 text-orange-700' :
+                                    'bg-blue-100 text-blue-700'
                                 }`}>
                                 {project.priority || 'P2'}
                             </span>
                             <span className={`px-3 py-1 rounded-full text-sm ${project.status === 'active' ? 'bg-green-100 text-green-700' :
-                                    project.status === 'planning' ? 'bg-blue-100 text-blue-700' :
-                                        project.status === 'completed' ? 'bg-slate-100 text-slate-700' :
-                                            'bg-yellow-100 text-yellow-700'
+                                project.status === 'planning' ? 'bg-blue-100 text-blue-700' :
+                                    project.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                                        'bg-yellow-100 text-yellow-700'
                                 }`}>
                                 {project.status}
                             </span>
@@ -145,7 +145,7 @@ const ProjectDetail: React.FC = () => {
                                     outerRadius={100}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                                 >
                                     {resourceData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
