@@ -130,6 +130,22 @@ export interface Risk {
     status: 'identified' | 'mitigating' | 'resolved';
 }
 
+// Task for Gantt Chart
+export interface Task {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    progress: number;
+    color?: string;
+    type: 'task' | 'milestone' | 'group';
+    parentId?: string;
+    expanded?: boolean;
+    description?: string;
+    priority?: 'P0' | 'P1' | 'P2' | 'P3';
+    status?: 'planning' | 'active' | 'completed' | 'on-hold';
+}
+
 // Project
 export interface Project {
     id: string;
@@ -162,6 +178,9 @@ export interface Project {
 
     // Milestones
     milestones?: Milestone[];
+
+    // Tasks (New for Gantt)
+    tasks?: Task[];
 
     // Risks
     risks?: Risk[];

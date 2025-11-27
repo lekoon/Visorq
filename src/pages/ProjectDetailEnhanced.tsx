@@ -1,21 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { ArrowLeft, TrendingUp, Edit2, Plus, Check, X, DollarSign } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Edit2, Check, DollarSign } from 'lucide-react';
 // import { useTranslation } from 'react-i18next'; // Unused
-import { format, parseISO, differenceInDays, addDays } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import CostRegistrationForm from '../components/CostRegistrationForm';
 import ProfessionalGanttChart from '../components/ProfessionalGanttChart';
 import RiskAssessment from '../components/RiskAssessment';
-import type { CostEntry, Risk } from '../types';
-
-interface Milestone {
-    id: string;
-    name: string;
-    date: string;
-    completed: boolean;
-    description?: string;
-}
+import type { CostEntry, Milestone } from '../types';
 
 const ProjectDetailEnhanced: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
@@ -36,8 +28,6 @@ const ProjectDetailEnhanced: React.FC = () => {
             { id: '5', name: '项目交付', date: '2024-04-15', completed: false },
         ]
     );
-    const [newMilestone, setNewMilestone] = useState({ name: '', date: '', description: '' });
-    const [showAddMilestone, setShowAddMilestone] = useState(false);
 
     // Cost Management State - Initialize from project data
     const [activeTab, setActiveTab] = useState<'resources' | 'costs' | 'risks'>('resources');
@@ -61,47 +51,8 @@ const ProjectDetailEnhanced: React.FC = () => {
         );
     }
 
-    const projectDuration = useMemo(() => {
-        if (!project.startDate || !project.endDate) return 0;
-        return differenceInDays(parseISO(project.endDate), parseISO(project.startDate));
-    }, [project.startDate, project.endDate]);
-
     const completedMilestones = milestones.filter(m => m.completed).length;
     const progress = milestones.length > 0 ? (completedMilestones / milestones.length) * 100 : 0;
-
-    const handleAddMilestone = () => {
-        if (newMilestone.name && newMilestone.date) {
-            const updatedMilestones = [...milestones, {
-                id: Date.now().toString(),
-                name: newMilestone.name,
-                date: newMilestone.date,
-                completed: false,
-                description: newMilestone.description
-            }];
-            setMilestones(updatedMilestones);
-            setNewMilestone({ name: '', date: '', description: '' });
-            setShowAddMilestone(false);
-
-            // Persist to store
-            updateProject(project.id, {
-                ...project,
-                milestones: updatedMilestones
-            });
-        }
-    };
-
-    const updateMilestoneDate = (id: string, newDate: string) => {
-        const updatedMilestones = milestones.map(m =>
-            m.id === id ? { ...m, date: newDate } : m
-        );
-        setMilestones(updatedMilestones);
-
-        // Persist to store
-        updateProject(project.id, {
-            ...project,
-            milestones: updatedMilestones
-        });
-    };
 
     const handleSaveCosts = (costs: CostEntry[], budget?: number) => {
         setProjectCosts(costs);
@@ -133,139 +84,133 @@ const ProjectDetailEnhanced: React.FC = () => {
                 返回
             </button>
 
-            {/* Project Header Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
-                <div className="flex items-start justify-between mb-6">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                            <span className={`px-3 py-1 rounded-lg text-sm font-bold ${project.priority === 'P0' ? 'bg-red-500/20 border border-red-300' :
-                                project.priority === 'P1' ? 'bg-orange-500/20 border border-orange-300' :
-                                    'bg-blue-500/20 border border-blue-300'
-                                }`}>
-                                {project.priority || 'P2'}
-                            </span>
-                            <span className={`px-3 py-1 rounded-lg text-sm font-medium ${project.status === 'active' ? 'bg-green-500/20 border border-green-300' :
-                                project.status === 'planning' ? 'bg-blue-500/20 border border-blue-300' :
-                                    project.status === 'completed' ? 'bg-purple-500/20 border border-purple-300' :
-                                        'bg-orange-500/20 border border-orange-300'
-                                }`}>
-                                {project.status}
-                            </span>
-                        </div>
-                        <h1 className="text-4xl font-bold mb-3">{project.name}</h1>
-                        <p className="text-blue-100 text-lg mb-4">{project.description}</p>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                            <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                                <div className="text-xs text-blue-100 mb-1">开始日期</div>
-                                <div className="font-bold">{project.startDate}</div>
+            {/* Project Header Card - Compact & Editable */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1 mr-8">
+                        {isEditing ? (
+                            <div className="space-y-3">
+                                <input
+                                    type="text"
+                                    value={project.name}
+                                    onChange={(e) => updateProject(project.id, { ...project, name: e.target.value })}
+                                    className="text-2xl font-bold text-slate-900 w-full border-b border-slate-300 focus:border-blue-500 focus:outline-none px-1"
+                                />
+                                <textarea
+                                    value={project.description}
+                                    onChange={(e) => updateProject(project.id, { ...project, description: e.target.value })}
+                                    className="w-full text-slate-600 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    rows={2}
+                                />
                             </div>
-                            <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                                <div className="text-xs text-blue-100 mb-1">结束日期</div>
-                                <div className="font-bold">{project.endDate}</div>
+                        ) : (
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900 mb-2">{project.name}</h1>
+                                <p className="text-slate-600 line-clamp-2">{project.description}</p>
                             </div>
-                            <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                                <div className="text-xs text-blue-100 mb-1">项目周期</div>
-                                <div className="font-bold">{projectDuration} 天</div>
-                            </div>
-                            <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                                <div className="text-xs text-blue-100 mb-1">评分</div>
-                                <div className="font-bold flex items-center gap-1">
-                                    <TrendingUp size={16} />
-                                    {project.score.toFixed(1)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => setIsEditing(!isEditing)}
-                        className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg transition-colors"
-                    >
-                        <Edit2 size={18} />
-                        编辑
-                    </button>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="bg-white/10 backdrop-blur rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium">项目进度</span>
-                        <span className="text-sm font-bold">{progress.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-white/20 rounded-full h-3">
-                        <div
-                            className="bg-gradient-to-r from-green-400 to-emerald-500 h-3 rounded-full transition-all duration-500"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                    <div className="flex justify-between items-center mt-2 text-xs text-blue-100">
-                        <span>{completedMilestones} / {milestones.length} 里程碑完成</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Gantt Chart Section */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-900">项目甘特图</h2>
-                        <p className="text-sm text-slate-500 mt-1">拖动任务条调整时间，支持日/周/月视图切换</p>
+                        )}
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => setShowAddMilestone(!showAddMilestone)}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                            onClick={() => setIsEditing(!isEditing)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${isEditing ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                         >
-                            <Plus size={18} />
-                            添加里程碑
+                            {isEditing ? <Check size={16} /> : <Edit2 size={16} />}
+                            {isEditing ? '完成' : '编辑'}
                         </button>
                     </div>
                 </div>
 
-                {/* Add Milestone Form */}
-                {showAddMilestone && (
-                    <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <input
-                                type="text"
-                                placeholder="里程碑名称"
-                                value={newMilestone.name}
-                                onChange={(e) => setNewMilestone({ ...newMilestone, name: e.target.value })}
-                                className="px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            />
-                            <input
-                                type="date"
-                                value={newMilestone.date}
-                                onChange={(e) => setNewMilestone({ ...newMilestone, date: e.target.value })}
-                                className="px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            />
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleAddMilestone}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                                >
-                                    <Check size={16} />
-                                    添加
-                                </button>
-                                <button
-                                    onClick={() => setShowAddMilestone(false)}
-                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-colors"
-                                >
-                                    <X size={16} />
-                                </button>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 text-xs mb-1">状态</div>
+                        {isEditing ? (
+                            <select
+                                value={project.status}
+                                onChange={(e) => updateProject(project.id, { ...project, status: e.target.value as any })}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1"
+                            >
+                                <option value="planning">规划中</option>
+                                <option value="active">进行中</option>
+                                <option value="completed">已完成</option>
+                                <option value="on-hold">暂停</option>
+                            </select>
+                        ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${project.status === 'active' ? 'bg-green-100 text-green-700' :
+                                project.status === 'planning' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-slate-100 text-slate-600'
+                                }`}>
+                                {project.status}
+                            </span>
+                        )}
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 text-xs mb-1">优先级</div>
+                        {isEditing ? (
+                            <select
+                                value={project.priority}
+                                onChange={(e) => updateProject(project.id, { ...project, priority: e.target.value as any })}
+                                className="w-full bg-white border border-slate-200 rounded px-2 py-1"
+                            >
+                                <option value="P0">P0 (最高)</option>
+                                <option value="P1">P1 (高)</option>
+                                <option value="P2">P2 (中)</option>
+                                <option value="P3">P3 (低)</option>
+                            </select>
+                        ) : (
+                            <span className={`font-bold ${project.priority === 'P0' ? 'text-red-600' : 'text-slate-700'}`}>
+                                {project.priority}
+                            </span>
+                        )}
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 text-xs mb-1">起止日期</div>
+                        {isEditing ? (
+                            <div className="flex gap-1">
+                                <input type="date" value={project.startDate} onChange={(e) => updateProject(project.id, { ...project, startDate: e.target.value })} className="w-full text-xs border rounded px-1" />
+                                <input type="date" value={project.endDate} onChange={(e) => updateProject(project.id, { ...project, endDate: e.target.value })} className="w-full text-xs border rounded px-1" />
                             </div>
+                        ) : (
+                            <div className="font-medium text-slate-700">
+                                {project.startDate} ~ {project.endDate}
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 text-xs mb-1">进度</div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{ width: `${progress}%` }}></div>
+                            </div>
+                            <span className="text-xs font-bold text-blue-600">{progress.toFixed(0)}%</span>
                         </div>
                     </div>
-                )}
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                        <div className="text-slate-500 text-xs mb-1">评分</div>
+                        <div className="font-bold text-slate-700 flex items-center gap-1">
+                            <TrendingUp size={14} className="text-blue-500" />
+                            {project.score.toFixed(1)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Task Diagram Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col min-h-[800px]">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-900">项目任务示意图</h2>
+                        <p className="text-xs text-slate-500 mt-1">可视化管理任务进度与依赖关系</p>
+                    </div>
+                </div>
 
                 {/* Professional Gantt Chart */}
-                <div className="h-[600px]">
+                <div className="flex-1 min-h-0">
                     <ProfessionalGanttChart
                         startDate={project.startDate}
                         endDate={project.endDate}
-                        tasks={[
-                            // Main Project Task
+                        tasks={project.tasks || [
+                            // Default initialization if no tasks exist
                             {
                                 id: 'main-project',
                                 name: project.name,
@@ -273,9 +218,10 @@ const ProjectDetailEnhanced: React.FC = () => {
                                 endDate: project.endDate || format(addDays(new Date(), 30), 'yyyy-MM-dd'),
                                 progress: progress,
                                 type: 'task',
-                                color: '#3B82F6'
+                                color: '#3B82F6',
+                                status: project.status,
+                                priority: project.priority
                             },
-                            // Milestones
                             ...milestones.map(m => ({
                                 id: m.id,
                                 name: m.name,
@@ -283,20 +229,70 @@ const ProjectDetailEnhanced: React.FC = () => {
                                 endDate: m.date,
                                 progress: m.completed ? 100 : 0,
                                 type: 'milestone' as const,
-                                color: '#8B5CF6'
+                                color: '#8B5CF6',
+                                description: m.description
                             }))
                         ]}
                         onTaskUpdate={(updatedTask) => {
-                            if (updatedTask.type === 'milestone') {
-                                updateMilestoneDate(updatedTask.id, updatedTask.startDate);
-                            } else if (updatedTask.id === 'main-project') {
-                                // Update project dates
-                                updateProject(project.id, {
-                                    ...project,
-                                    startDate: updatedTask.startDate,
-                                    endDate: updatedTask.endDate
-                                });
+                            const currentTasks = project.tasks || [];
+                            const taskIndex = currentTasks.findIndex(t => t.id === updatedTask.id);
+
+                            let newTasks;
+                            if (taskIndex >= 0) {
+                                newTasks = [...currentTasks];
+                                newTasks[taskIndex] = updatedTask;
+                            } else {
+                                // If not found (e.g. initial load from milestones), add it
+                                newTasks = [...currentTasks, updatedTask];
                             }
+
+                            // Sync back to milestones if it's a milestone
+                            if (updatedTask.type === 'milestone') {
+                                const updatedMilestones = milestones.map(m =>
+                                    m.id === updatedTask.id
+                                        ? { ...m, date: updatedTask.startDate, name: updatedTask.name, description: updatedTask.description }
+                                        : m
+                                );
+                                setMilestones(updatedMilestones);
+                                updateProject(project.id, { ...project, milestones: updatedMilestones, tasks: newTasks });
+                            } else {
+                                updateProject(project.id, { ...project, tasks: newTasks });
+                            }
+                        }}
+                        onTaskAdd={(newTask) => {
+                            const currentTasks = project.tasks || [];
+                            const newTasks = [...currentTasks, newTask];
+
+                            if (newTask.type === 'milestone') {
+                                const newMilestone: Milestone = {
+                                    id: newTask.id,
+                                    name: newTask.name,
+                                    date: newTask.startDate,
+                                    completed: false,
+                                    description: newTask.description
+                                };
+                                const updatedMilestones = [...milestones, newMilestone];
+                                setMilestones(updatedMilestones);
+                                updateProject(project.id, { ...project, milestones: updatedMilestones, tasks: newTasks });
+                            } else {
+                                updateProject(project.id, { ...project, tasks: newTasks });
+                            }
+                        }}
+                        onTaskDelete={(taskId) => {
+                            const currentTasks = project.tasks || [];
+                            const taskToDelete = currentTasks.find(t => t.id === taskId);
+                            const newTasks = currentTasks.filter(t => t.id !== taskId);
+
+                            if (taskToDelete?.type === 'milestone') {
+                                const updatedMilestones = milestones.filter(m => m.id !== taskId);
+                                setMilestones(updatedMilestones);
+                                updateProject(project.id, { ...project, milestones: updatedMilestones, tasks: newTasks });
+                            } else {
+                                updateProject(project.id, { ...project, tasks: newTasks });
+                            }
+                        }}
+                        onTasksReorder={(newTasks) => {
+                            updateProject(project.id, { ...project, tasks: newTasks });
                         }}
                     />
                 </div>
