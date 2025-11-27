@@ -130,7 +130,7 @@ export interface Risk {
     status: 'identified' | 'mitigating' | 'resolved';
 }
 
-// Task for Gantt Chart
+// Task for Canvas-based Task Diagram
 export interface Task {
     id: string;
     name: string;
@@ -144,6 +144,13 @@ export interface Task {
     description?: string;
     priority?: 'P0' | 'P1' | 'P2' | 'P3';
     status?: 'planning' | 'active' | 'completed' | 'on-hold';
+
+    // Canvas positioning (for free-form layout)
+    x?: number; // X coordinate on canvas
+    y?: number; // Y coordinate on canvas
+
+    // Dependencies
+    dependencies?: string[]; // Array of task IDs this task depends on
 }
 
 // Project
