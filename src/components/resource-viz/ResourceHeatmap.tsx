@@ -175,11 +175,18 @@ const ResourceHeatmap: React.FC<ResourceHeatmapProps> = ({
                                                             getLoadColor(load)
                                                         )}
                                                     >
-                                                        <div className="h-8 flex items-center justify-center">
+                                                        <div className="h-8 flex items-center justify-center relative">
                                                             {load > 0 && (
-                                                                <span className={load > 100 ? "text-red-700 font-bold" : "text-slate-600"}>
-                                                                    {load}%
-                                                                </span>
+                                                                <>
+                                                                    <span className={load > 100 ? "text-red-700 font-bold" : "text-slate-600"}>
+                                                                        {load}%
+                                                                    </span>
+                                                                    {load > 100 && (
+                                                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                                                                            <span className="text-white text-[10px] font-bold">!</span>
+                                                                        </div>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
 
