@@ -1,32 +1,57 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useStore } from './store/useStore';
+import { useUser } from './store/useStore';
 import Layout from './components/Layout';
-import Home from './pages/Home';
-import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import Analysis from './pages/Analysis';
-import Settings from './pages/Settings';
-import Resources from './pages/Resources';
-import Login from './pages/Login';
-import Profile from './pages/Profile';
-import UserWorkbench from './pages/UserWorkbench';
-// import ProjectDetail from './pages/ProjectDetail'; // Replaced by ProjectDetailEnhanced
-import ProjectDetailEnhanced from './pages/ProjectDetailEnhanced';
-import AIDecisionDashboard from './pages/AIDecisionDashboard';
-import AdvancedReports from './pages/AdvancedReports';
-import TemplateManager from './pages/TemplateManager';
-import BatchImport from './pages/BatchImport';
+import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 
+// Eager load critical routes
+import Login from './pages/Login';
+import Home from './pages/Home';
+
+// Lazy load other routes for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Projects = lazy(() => import('./pages/Projects'));
+const ProjectDetailEnhanced = lazy(() => import('./pages/ProjectDetailEnhanced'));
+const Analysis = lazy(() => import('./pages/Analysis'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Resources = lazy(() => import('./pages/Resources'));
+const Profile = lazy(() => import('./pages/Profile'));
+const UserWorkbench = lazy(() => import('./pages/UserWorkbench'));
+const AIDecisionDashboard = lazy(() => import('./pages/AIDecisionDashboard'));
+const AdvancedReports = lazy(() => import('./pages/AdvancedReports'));
+const TemplateManager = lazy(() => import('./pages/TemplateManager'));
+const BatchImport = lazy(() => import('./pages/BatchImport'));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen">
+    <LoadingSpinner />
+  </div>
+);
+
+// Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useStore();
+  const user = useUser();
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
   return <>{children}</>;
 };
+
+// Layout wrapper with Suspense
+const LayoutRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ProtectedRoute>
+    <Layout>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
+    </Layout>
+  </ProtectedRoute>
+);
 
 function App() {
   return (
@@ -34,111 +59,34 @@ function App() {
       <Router>
         <KeyboardShortcutsHelp />
         <Routes>
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
 
-          {/* Home Landing Page */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Layout>
-                <Home />
-              </Layout>
-            </ProtectedRoute>
-          } />
+          {/* Protected Routes */}
+          <Route path="/" element={<LayoutRoute><Home /></LayoutRoute>} />
+          <Route path="/dashboard" element={<LayoutRoute><Dashboard /></LayoutRoute>} />
 
           {/* Project Management */}
-          <Route path="/projects" element={
-            <ProtectedRoute>
-              <Layout>
-                <Projects />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/projects/:projectId" element={
-            <ProtectedRoute>
-              <Layout>
-                <ProjectDetailEnhanced />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/projects/templates" element={
-            <ProtectedRoute>
-              <Layout>
-                <TemplateManager />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/projects/import" element={
-            <ProtectedRoute>
-              <Layout>
-                <BatchImport />
-              </Layout>
-            </ProtectedRoute>
-          } />
+          <Route path="/projects" element={<LayoutRoute><Projects /></LayoutRoute>} />
+          <Route path="/projects/:projectId" element={<LayoutRoute><ProjectDetailEnhanced /></LayoutRoute>} />
+          <Route path="/projects/templates" element={<LayoutRoute><TemplateManager /></LayoutRoute>} />
+          <Route path="/projects/import" element={<LayoutRoute><BatchImport /></LayoutRoute>} />
 
           {/* Resource Management */}
-          <Route path="/resources" element={
-            <ProtectedRoute>
-              <Layout>
-                <Resources />
-              </Layout>
-            </ProtectedRoute>
-          } />
+          <Route path="/resources" element={<LayoutRoute><Resources /></LayoutRoute>} />
 
-          {/* Cost Analysis */}
-          <Route path="/cost" element={
-            <ProtectedRoute>
-              <Layout>
-                <Analysis />
-              </Layout>
-            </ProtectedRoute>
-          } />
+          {/* Analysis & Reports */}
+          <Route path="/analysis" element={<LayoutRoute><Analysis /></LayoutRoute>} />
+          <Route path="/ai-decision" element={<LayoutRoute><AIDecisionDashboard /></LayoutRoute>} />
+          <Route path="/reports" element={<LayoutRoute><AdvancedReports /></LayoutRoute>} />
 
-          {/* Decision Support */}
-          <Route path="/decision" element={
-            <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/decision/ai" element={
-            <ProtectedRoute>
-              <Layout>
-                <AIDecisionDashboard />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/decision/reports" element={
-            <ProtectedRoute>
-              <Layout>
-                <AdvancedReports />
-              </Layout>
-            </ProtectedRoute>
-          } />
+          {/* User & Settings */}
+          <Route path="/workbench" element={<LayoutRoute><UserWorkbench /></LayoutRoute>} />
+          <Route path="/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />
+          <Route path="/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
 
-          {/* Other */}
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <Layout>
-                <Settings />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <Layout>
-                <Profile />
-              </Layout>
-            </ProtectedRoute>
-          } />
-          <Route path="/workbench" element={
-            <ProtectedRoute>
-              <Layout>
-                <UserWorkbench />
-              </Layout>
-            </ProtectedRoute>
-          } />
-
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </ErrorBoundary>
