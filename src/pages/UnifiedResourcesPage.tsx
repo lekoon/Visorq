@@ -25,6 +25,7 @@ import CostAnalysis from '../components/CostAnalysis';
 import SkillMatchingAnalysis from '../components/SkillMatchingAnalysis';
 import { generateTimeBuckets, calculateResourceLoad } from '../utils/resourcePlanning';
 import { exportResourcesToCSV, exportResourcePoolToCSV, exportToJSON } from '../utils/resourceExport';
+import AddResourceModal from '../components/AddResourceModal';
 
 type ViewTab = 'dashboard' | 'heatmap' | 'gantt' | 'conflicts' | 'costs' | 'skills';
 
@@ -32,6 +33,7 @@ const UnifiedResourcesPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
     const [utilizationFilter, setUtilizationFilter] = useState<'all' | 'low' | 'normal' | 'high' | 'over'>('all');
 
     const projects = useProjects();
@@ -113,7 +115,10 @@ const UnifiedResourcesPage: React.FC = () => {
                         <div className="flex items-center gap-3">
                             {/* Filter Button */}
                             <button
-                                onClick={() => setShowFilters(!showFilters)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowFilters(!showFilters);
+                                }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${showFilters || utilizationFilter !== 'all'
                                     ? 'bg-blue-100 text-blue-700'
                                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -164,7 +169,10 @@ const UnifiedResourcesPage: React.FC = () => {
                             </div>
 
                             {/* Add Resource Button */}
-                            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                            >
                                 <Plus size={18} />
                                 <span>添加资源</span>
                             </button>
@@ -201,7 +209,10 @@ const UnifiedResourcesPage: React.FC = () => {
                                     ].map((option) => (
                                         <button
                                             key={option.value}
-                                            onClick={() => setUtilizationFilter(option.value)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setUtilizationFilter(option.value);
+                                            }}
                                             className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${utilizationFilter === option.value
                                                 ? 'bg-blue-600 text-white'
                                                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -264,6 +275,12 @@ const UnifiedResourcesPage: React.FC = () => {
                     }}
                 />
             )}
+
+            {/* Add Resource Modal */}
+            <AddResourceModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+            />
         </div>
     );
 };
