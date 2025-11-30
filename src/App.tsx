@@ -17,7 +17,7 @@ const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetailEnhanced = lazy(() => import('./pages/ProjectDetailEnhanced'));
 const Analysis = lazy(() => import('./pages/Analysis'));
 const Settings = lazy(() => import('./pages/Settings'));
-const Resources = lazy(() => import('./pages/Resources'));
+const Resources = lazy(() => import('./pages/UnifiedResourcesPage'));
 const Profile = lazy(() => import('./pages/Profile'));
 const UserWorkbench = lazy(() => import('./pages/UserWorkbench'));
 const AIDecisionDashboard = lazy(() => import('./pages/AIDecisionDashboard'));

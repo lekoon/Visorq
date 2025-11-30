@@ -4,17 +4,11 @@
  */
 
 import React, { useMemo } from 'react';
-import { format, addMonths, startOfMonth } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import type { TimeBucket, ResourceLoad } from '../utils/resourcePlanning';
 
 interface ResourceAllocationHeatmapProps {
-    resourceLoads: Array<{
-        resourceId: string;
-        resourceName: string;
-        capacity: number;
-        allocations: Record<string, { total: number; projects: any[] }>;
-    }>;
-    buckets: Array<{ label: string; start: Date; end: Date }>;
+    resourceLoads: ResourceLoad[];
+    buckets: TimeBucket[];
 }
 
 const ResourceAllocationHeatmap: React.FC<ResourceAllocationHeatmapProps> = ({
@@ -111,10 +105,10 @@ const ResourceAllocationHeatmap: React.FC<ResourceAllocationHeatmapProps> = ({
                                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20">
                                                 <div className="bg-slate-900 text-white text-xs rounded-lg p-3 shadow-xl min-w-[200px]">
                                                     <div className="font-semibold mb-2">分配到的项目:</div>
-                                                    {cell.projects.map((proj: any, idx: number) => (
+                                                    {cell.projects.map((proj, idx) => (
                                                         <div key={idx} className="flex justify-between items-center py-1">
-                                                            <span className="truncate">{proj.projectName}</span>
-                                                            <span className="ml-2 font-mono">{proj.count}</span>
+                                                            <span className="truncate">{proj.name}</span>
+                                                            <span className="ml-2 font-mono">{proj.amount}</span>
                                                         </div>
                                                     ))}
                                                 </div>
