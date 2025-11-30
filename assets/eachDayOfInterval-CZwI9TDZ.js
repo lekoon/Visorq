@@ -1,0 +1,1 @@
+import{n as i}from"./normalizeInterval-Xp5GMWSn.js";import{m as l}from"./index-CxIDg_si.js";function p(o,a){const{start:t,end:r}=i(a?.in,o);let s=+t>+r;const c=s?+t:+r,e=s?r:t;e.setHours(0,0,0,0);let m=1;const n=[];for(;+e<=c;)n.push(l(t,e)),e.setDate(e.getDate()+m),e.setHours(0,0,0,0);return s?n.reverse():n}export{p as e};
