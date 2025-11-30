@@ -15,11 +15,14 @@ import {
 } from 'lucide-react';
 import OptimizedChart from '../components/OptimizedChart';
 import { generateTimeBuckets, calculateResourceLoad } from '../utils/resourcePlanning';
+import ResourceDetailModal from '../components/ResourceDetailModal';
 
 const EnhancedResourcesDashboard: React.FC = () => {
     const projects = useProjects();
     const resourcePool = useResourcePool();
     const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter'>('month');
+    const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     // Calculate resource metrics
     const buckets = useMemo(() => generateTimeBuckets(projects, 12), [projects]);
@@ -68,6 +71,7 @@ const EnhancedResourcesDashboard: React.FC = () => {
             const utilization = load.capacity > 0 ? (used / load.capacity) * 100 : 0;
 
             return {
+                id: load.resourceId,
                 name: load.resourceName,
                 utilization: Math.round(utilization),
                 capacity: load.capacity,
@@ -148,10 +152,10 @@ const EnhancedResourcesDashboard: React.FC = () => {
                         <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                             <div
                                 className={`h-full transition-all ${stats.avgUtilization > 90
-                                        ? 'bg-red-500'
-                                        : stats.avgUtilization > 70
-                                            ? 'bg-yellow-500'
-                                            : 'bg-green-500'
+                                    ? 'bg-red-500'
+                                    : stats.avgUtilization > 70
+                                        ? 'bg-yellow-500'
+                                        : 'bg-green-500'
                                     }`}
                                 style={{ width: `${Math.min(stats.avgUtilization, 100)}%` }}
                             />
@@ -265,7 +269,14 @@ const EnhancedResourcesDashboard: React.FC = () => {
                                                 : 'low';
 
                                 return (
-                                    <tr key={index} className="hover:bg-slate-50 transition-colors">
+                                    <tr
+                                        key={index}
+                                        className="hover:bg-slate-50 transition-colors cursor-pointer"
+                                        onClick={() => {
+                                            setSelectedResourceId(resource.id);
+                                            setIsDetailModalOpen(true);
+                                        }}
+                                    >
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm font-medium text-slate-900">{resource.name}</div>
                                         </td>
@@ -283,12 +294,12 @@ const EnhancedResourcesDashboard: React.FC = () => {
                                                 <div className="flex-1 max-w-[100px] h-2 bg-slate-100 rounded-full overflow-hidden">
                                                     <div
                                                         className={`h-full transition-all ${status === 'overallocated'
-                                                                ? 'bg-red-500'
-                                                                : status === 'high'
-                                                                    ? 'bg-yellow-500'
-                                                                    : status === 'normal'
-                                                                        ? 'bg-green-500'
-                                                                        : 'bg-blue-500'
+                                                            ? 'bg-red-500'
+                                                            : status === 'high'
+                                                                ? 'bg-yellow-500'
+                                                                : status === 'normal'
+                                                                    ? 'bg-green-500'
+                                                                    : 'bg-blue-500'
                                                             }`}
                                                         style={{ width: `${Math.min(resource.utilization, 100)}%` }}
                                                     />
@@ -301,12 +312,12 @@ const EnhancedResourcesDashboard: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span
                                                 className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${status === 'overallocated'
-                                                        ? 'bg-red-100 text-red-800'
-                                                        : status === 'high'
-                                                            ? 'bg-yellow-100 text-yellow-800'
-                                                            : status === 'normal'
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : 'bg-blue-100 text-blue-800'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : status === 'high'
+                                                        ? 'bg-yellow-100 text-yellow-800'
+                                                        : status === 'normal'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-blue-100 text-blue-800'
                                                     }`}
                                             >
                                                 {status === 'overallocated'
@@ -325,6 +336,15 @@ const EnhancedResourcesDashboard: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Resource Detail Modal */}
+            {selectedResourceId && (
+                <ResourceDetailModal
+                    isOpen={isDetailModalOpen}
+                    onClose={() => setIsDetailModalOpen(false)}
+                    resourceId={selectedResourceId}
+                />
+            )}
         </div>
     );
 };
