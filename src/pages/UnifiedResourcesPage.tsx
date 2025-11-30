@@ -16,6 +16,7 @@ import {
     Download,
     Filter,
     X,
+    Brain,
 } from 'lucide-react';
 import EnhancedResourcesDashboard from './EnhancedResourcesDashboard';
 import ResourceAllocationHeatmap from '../components/ResourceAllocationHeatmap';
@@ -26,8 +27,9 @@ import SkillMatchingAnalysis from '../components/SkillMatchingAnalysis';
 import { generateTimeBuckets, calculateResourceLoad } from '../utils/resourcePlanning';
 import { exportResourcesToCSV, exportResourcePoolToCSV, exportToJSON } from '../utils/resourceExport';
 import AddResourceModal from '../components/AddResourceModal';
+import AIDecisionDashboard from './AIDecisionDashboard';
 
-type ViewTab = 'dashboard' | 'heatmap' | 'gantt' | 'conflicts' | 'costs' | 'skills';
+type ViewTab = 'dashboard' | 'heatmap' | 'gantt' | 'conflicts' | 'costs' | 'skills' | 'decision';
 
 const UnifiedResourcesPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ViewTab>('dashboard');
@@ -78,6 +80,7 @@ const UnifiedResourcesPage: React.FC = () => {
         { id: 'conflicts' as const, label: '冲突检测', icon: AlertCircle, color: 'red' },
         { id: 'costs' as const, label: '成本分析', icon: DollarSign, color: 'yellow' },
         { id: 'skills' as const, label: '技能匹配', icon: Target, color: 'indigo' },
+        { id: 'decision' as const, label: '决策支持', icon: Brain, color: 'rose' },
     ];
 
     const handleExport = (format: 'csv' | 'json') => {
@@ -264,6 +267,8 @@ const UnifiedResourcesPage: React.FC = () => {
                 {activeTab === 'costs' && <CostAnalysis />}
 
                 {activeTab === 'skills' && <SkillMatchingAnalysis />}
+
+                {activeTab === 'decision' && <AIDecisionDashboard />}
             </div>
 
             {/* Click outside to close menus */}
