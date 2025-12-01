@@ -1,1 +1,0 @@
-import{t as e,m as s,n as o}from"./index-CxIDg_si.js";function c(a,t,n){const r=e(a,n?.in);return isNaN(t)?s(a,NaN):(t&&r.setDate(r.getDate()+t),r)}function f(a,t){const[n,r]=o(a,t.start,t.end);return{start:n,end:r}}export{c as a,f as n};
