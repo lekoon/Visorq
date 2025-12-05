@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useStore } from '../store/useStore';
-import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle } from 'lucide-react';
-import TaskCanvasDiagram from '../components/TaskCanvasDiagram';
+import { useStore, useResourcePool } from '../store/useStore';
+import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle, BarChart3 } from 'lucide-react';
+import SmartTaskView from '../components/SmartTaskView';
+import ProjectResourceDetail from '../components/ProjectResourceDetail';
 import RiskAssessment from '../components/RiskAssessment';
 import CostRegistrationForm from '../components/CostRegistrationForm';
+import ProjectHealthDashboard from '../components/ProjectHealthDashboard';
+import CostControlPanel from '../components/CostControlPanel';
 import type { CostEntry, Task } from '../types';
 
 const ProjectDetailEnhanced: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
     const { projects, updateProject } = useStore();
+    const resourcePool = useResourcePool();
 
     const project = projects.find(p => p.id === projectId);
 
     // Initialize state
     const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks'>('diagram');
+    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks' | 'analytics'>('diagram');
     const [isCostFormOpen, setIsCostFormOpen] = useState(false);
 
     if (!project) {
@@ -147,14 +151,21 @@ const ProjectDetailEnhanced: React.FC = () => {
                     >
                         <DollarSign size={16} /> 成本
                     </button>
+                    <button
+                        onClick={() => setActiveTab('analytics')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${activeTab === 'analytics' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <BarChart3 size={16} /> 高级分析
+                    </button>
                 </div>
             </div>
 
             {/* Main Content Area - Full Screen */}
             <div className="flex-1 relative overflow-hidden bg-slate-50">
                 {activeTab === 'diagram' && (
-                    <TaskCanvasDiagram
+                    <SmartTaskView
                         tasks={project.tasks || []}
+                        projectName={project.name}
                         onTaskUpdate={handleTaskUpdate}
                         onTaskAdd={handleTaskAdd}
                         onTaskDelete={handleTaskDelete}
@@ -214,11 +225,30 @@ const ProjectDetailEnhanced: React.FC = () => {
                     </div>
                 )}
 
-                {/* Placeholders for other tabs */}
-                {activeTab === 'resources' && (
-                    <div className="flex items-center justify-center h-full text-slate-400">
-                        功能开发中...
+                {/* 高级分析视图 */}
+                {activeTab === 'analytics' && (
+                    <div className="h-full overflow-auto p-6 max-w-7xl mx-auto space-y-6">
+                        {/* 项目健康度仪表板 */}
+                        <ProjectHealthDashboard
+                            project={project}
+                            tasks={project.tasks || []}
+                            allProjects={projects}
+                        />
+
+                        {/* 成本控制面板 */}
+                        <CostControlPanel
+                            project={project}
+                            tasks={project.tasks || []}
+                        />
                     </div>
+                )}
+
+                {/* 资源详情视图 */}
+                {activeTab === 'resources' && (
+                    <ProjectResourceDetail
+                        project={project}
+                        resourcePool={resourcePool}
+                    />
                 )}
             </div>
 

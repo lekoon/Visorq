@@ -16,13 +16,18 @@ import {
 import OptimizedChart from '../components/OptimizedChart';
 import { generateTimeBuckets, calculateResourceLoad } from '../utils/resourcePlanning';
 import ResourceDetailModal from '../components/ResourceDetailModal';
+import ScheduleOptimizerPanel from '../components/ScheduleOptimizerPanel';
+import { useStore } from '../store/useStore';
+import type { Task } from '../types';
 
 const EnhancedResourcesDashboard: React.FC = () => {
     const projects = useProjects();
     const resourcePool = useResourcePool();
+    const { updateProject, addNotification } = useStore();
     const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter'>('month');
     const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
     // Calculate resource metrics
     const buckets = useMemo(() => generateTimeBuckets(projects, 12, selectedPeriod), [projects, selectedPeriod]);
@@ -335,6 +340,53 @@ const EnhancedResourcesDashboard: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* 智能调度优化器 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-slate-900">智能进度调度</h3>
+                        <p className="text-sm text-slate-500 mt-1">自动优化资源分配，解决冲突</p>
+                    </div>
+                    <select
+                        value={selectedProject || ''}
+                        onChange={(e) => setSelectedProject(e.target.value || null)}
+                        className="px-4 py-2 border border-slate-200 rounded-lg bg-white"
+                    >
+                        <option value="">选择项目...</option>
+                        {projects.filter(p => p.status === 'active').map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {selectedProject ? (
+                    <ScheduleOptimizerPanel
+                        project={projects.find(p => p.id === selectedProject)!}
+                        tasks={projects.find(p => p.id === selectedProject)?.tasks || []}
+                        resourcePool={resourcePool}
+                        onApplyChanges={(optimizedTasks: Task[]) => {
+                            const project = projects.find(p => p.id === selectedProject);
+                            if (project) {
+                                updateProject(selectedProject, {
+                                    ...project,
+                                    tasks: optimizedTasks
+                                });
+                                addNotification({
+                                    message: `项目"${project.name}"的任务已根据优化方案重新调度`,
+                                    type: 'success',
+                                    duration: 5000
+                                });
+                            }
+                        }}
+                    />
+                ) : (
+                    <div className="text-center py-12 text-slate-400">
+                        <Zap size={48} className="mx-auto mb-3 opacity-30" />
+                        <p>请选择一个项目以开始调度优化</p>
+                    </div>
+                )}
             </div>
 
             {/* Resource Detail Modal */}

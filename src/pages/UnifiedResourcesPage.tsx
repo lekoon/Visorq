@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import EnhancedResourcesDashboard from './EnhancedResourcesDashboard';
 import ResourceAllocationHeatmap from '../components/ResourceAllocationHeatmap';
-import ResourceGanttChart from '../components/ResourceGanttChart';
+import EnhancedResourceTimeline from '../components/EnhancedResourceTimeline';
 import ResourceConflictDetector from '../components/ResourceConflictDetector';
 import CostAnalysis from '../components/CostAnalysis';
 import SkillMatchingAnalysis from '../components/SkillMatchingAnalysis';
@@ -76,7 +76,7 @@ const UnifiedResourcesPage: React.FC = () => {
     const tabs = [
         { id: 'dashboard' as const, label: '总览', icon: LayoutDashboard, color: 'blue' },
         { id: 'heatmap' as const, label: '热力图', icon: Table, color: 'purple' },
-        { id: 'gantt' as const, label: '甘特图', icon: Calendar, color: 'green' },
+        { id: 'gantt' as const, label: '时间线', icon: Calendar, color: 'green' },
         { id: 'conflicts' as const, label: '冲突检测', icon: AlertCircle, color: 'red' },
         { id: 'costs' as const, label: '成本分析', icon: DollarSign, color: 'yellow' },
         { id: 'skills' as const, label: '技能匹配', icon: Target, color: 'indigo' },
@@ -260,7 +260,7 @@ const UnifiedResourcesPage: React.FC = () => {
                     <ResourceAllocationHeatmap resourceLoads={filteredResourceLoads} buckets={buckets} />
                 )}
 
-                {activeTab === 'gantt' && <ResourceGanttChart projects={projects} resources={resourcePool} />}
+                {activeTab === 'gantt' && <EnhancedResourceTimeline projects={projects} resources={resourcePool} />}
 
                 {activeTab === 'conflicts' && <ResourceConflictDetector />}
 

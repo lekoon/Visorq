@@ -237,3 +237,47 @@ export interface ProjectTemplate {
     isBuiltIn: boolean;
     createdAt: string;
 }
+
+// Collaboration Features
+
+export interface Comment {
+    id: string;
+    taskId?: string;
+    projectId?: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar?: string;
+    content: string;
+    mentions?: string[]; // User IDs mentioned in the comment
+    createdAt: string;
+    updatedAt?: string;
+    replies?: Comment[];
+}
+
+export interface ActivityLog {
+    id: string;
+    projectId: string;
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    action: 'created' | 'updated' | 'deleted' | 'commented' | 'assigned' | 'completed' | 'status_changed';
+    entityType: 'project' | 'task' | 'resource' | 'risk' | 'cost';
+    entityId: string;
+    entityName: string;
+    description: string;
+    metadata?: Record<string, any>;
+    timestamp: string;
+}
+
+export interface NotificationItem {
+    id: string;
+    userId: string;
+    type: 'mention' | 'assignment' | 'deadline' | 'status_change' | 'comment' | 'system';
+    title: string;
+    message: string;
+    link?: string;
+    read: boolean;
+    createdAt: string;
+    projectId?: string;
+    taskId?: string;
+}

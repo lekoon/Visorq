@@ -1,5 +1,9 @@
 import type { Project, ResourcePoolItem } from '../types';
 import {
+    eachDayOfInterval,
+    startOfDay,
+    endOfDay,
+    addDays,
     eachMonthOfInterval,
     eachWeekOfInterval,
     eachQuarterOfInterval,
@@ -36,13 +40,16 @@ export type ResourceLoad = {
 export const generateTimeBuckets = (
     projects: Project[],
     count = 12,
-    interval: 'week' | 'month' | 'quarter' = 'month'
+    interval: 'day' | 'week' | 'month' | 'quarter' = 'month'
 ): TimeBucket[] => {
     const now = new Date();
     let start: Date;
     let end: Date;
 
-    if (interval === 'week') {
+    if (interval === 'day') {
+        start = startOfDay(now);
+        end = addDays(start, count);
+    } else if (interval === 'week') {
         start = startOfWeek(now);
         end = addWeeks(start, count);
     } else if (interval === 'quarter') {
@@ -61,7 +68,8 @@ export const generateTimeBuckets = (
         if (startDates.length > 0) {
             const minDate = new Date(Math.min(...startDates));
             let adjustedMin: Date;
-            if (interval === 'week') adjustedMin = startOfWeek(minDate);
+            if (interval === 'day') adjustedMin = startOfDay(minDate);
+            else if (interval === 'week') adjustedMin = startOfWeek(minDate);
             else if (interval === 'quarter') adjustedMin = startOfQuarter(minDate);
             else adjustedMin = startOfMonth(minDate);
 
@@ -71,7 +79,8 @@ export const generateTimeBuckets = (
         if (endDates.length > 0) {
             const maxDate = new Date(Math.max(...endDates));
             let adjustedMax: Date;
-            if (interval === 'week') adjustedMax = endOfWeek(maxDate);
+            if (interval === 'day') adjustedMax = endOfDay(maxDate);
+            else if (interval === 'week') adjustedMax = endOfWeek(maxDate);
             else if (interval === 'quarter') adjustedMax = endOfQuarter(maxDate);
             else adjustedMax = endOfMonth(maxDate);
 
@@ -82,7 +91,10 @@ export const generateTimeBuckets = (
     let dates: Date[];
     let dateFormat: string;
 
-    if (interval === 'week') {
+    if (interval === 'day') {
+        dates = eachDayOfInterval({ start, end });
+        dateFormat = 'MM-dd';
+    } else if (interval === 'week') {
         dates = eachWeekOfInterval({ start, end });
         dateFormat = "'W'w yyyy"; // e.g., W42 2023
     } else if (interval === 'quarter') {
@@ -103,7 +115,7 @@ export const calculateResourceLoad = (
     projects: Project[],
     resources: ResourcePoolItem[],
     buckets: TimeBucket[],
-    interval: 'week' | 'month' | 'quarter' = 'month'
+    interval: 'day' | 'week' | 'month' | 'quarter' = 'month'
 ): ResourceLoad[] => {
     return resources.map(res => {
         const allocations: ResourceLoad['allocations'] = {};
@@ -112,7 +124,10 @@ export const calculateResourceLoad = (
             let bucketStart: Date;
             let bucketEnd: Date;
 
-            if (interval === 'week') {
+            if (interval === 'day') {
+                bucketStart = startOfDay(bucket.date);
+                bucketEnd = endOfDay(bucket.date);
+            } else if (interval === 'week') {
                 bucketStart = startOfWeek(bucket.date);
                 bucketEnd = endOfWeek(bucket.date);
             } else if (interval === 'quarter') {

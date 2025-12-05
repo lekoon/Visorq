@@ -162,3 +162,165 @@ export const exportHeatmapToExcel = (resources: ResourcePoolItem[], startDate: D
 export const printHeatmap = () => {
     window.print();
 };
+
+/**
+ * Print Gantt chart
+ */
+export const printGanttChart = () => {
+    window.print();
+};
+
+/**
+ * Export tasks to CSV
+ */
+export const exportTasksToCSV = (tasks: any[], projectName: string): void => {
+    const headers = ['任务名称', '描述', '开始日期', '结束日期', '状态', '优先级', '类型', '进度(%)'];
+
+    const rows = tasks.map(task => [
+        task.name,
+        task.description || '',
+        task.startDate,
+        task.endDate,
+        task.status || 'planning',
+        task.priority || 'P2',
+        task.type || 'task',
+        (task.progress || 0).toString()
+    ]);
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${projectName}_tasks_${format(new Date(), 'yyyyMMdd')}.csv`;
+    link.click();
+};
+
+/**
+ * Export gantt chart to JSON
+ */
+export const exportGanttToJSON = (tasks: any[], projectName: string): void => {
+    const ganttData = {
+        projectName,
+        exportDate: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        tasks: tasks.map(task => ({
+            id: task.id,
+            name: task.name,
+            description: task.description,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            status: task.status,
+            priority: task.priority,
+            type: task.type,
+            progress: task.progress,
+            color: task.color,
+            dependencies: task.dependencies || []
+        }))
+    };
+
+    const jsonContent = JSON.stringify(ganttData, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${projectName}_gantt_${format(new Date(), 'yyyyMMdd')}.json`;
+    link.click();
+};
+
+/**
+ * Export resource report to CSV
+ */
+export const exportResourceReportToCSV = (
+    project: any,
+    resourcePool: ResourcePoolItem[]
+): void => {
+    const headers = [
+        '资源名称',
+        '分配数量',
+        '总容量',
+        '利用率(%)',
+        '工期',
+        '预估成本(元)',
+        '技能要求',
+        '状态'
+    ];
+
+    const rows = (project.resourceRequirements || []).map((req: any) => {
+        const resource = resourcePool.find(r => r.id === req.resourceId);
+        if (!resource) return null;
+
+        const workDays = req.unit === 'day' ? req.duration :
+            req.unit === 'month' ? req.duration * 22 :
+                req.unit === 'year' ? req.duration * 260 : 0;
+
+        const estimatedCost = resource.hourlyRate
+            ? resource.hourlyRate * workDays * 8 * req.count
+            : resource.costPerUnit
+                ? resource.costPerUnit * req.duration * req.count
+                : 0;
+
+        const utilization = (req.count / resource.totalQuantity) * 100;
+        const isOverAllocated = req.count > resource.totalQuantity;
+
+        return [
+            resource.name,
+            req.count.toString(),
+            resource.totalQuantity.toString(),
+            utilization.toFixed(1),
+            `${req.duration}${req.unit === 'day' ? '天' : req.unit === 'month' ? '月' : '年'}`,
+            estimatedCost.toFixed(2),
+            (req.requiredSkills || []).join('; '),
+            isOverAllocated ? '超额' : '正常'
+        ];
+    }).filter(Boolean);
+
+    const csvContent = [
+        headers.join(','),
+        ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${project.name}_resources_${format(new Date(), 'yyyyMMdd')}.csv`;
+    link.click();
+};
+
+/**
+ * Export complete project report to JSON
+ */
+export const exportProjectReport = (
+    project: any,
+    resourcePool: ResourcePoolItem[]
+): void => {
+    const report = {
+        projectInfo: {
+            name: project.name,
+            status: project.status,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            budget: project.budget,
+            actualCost: project.actualCost
+        },
+        tasks: project.tasks || [],
+        resources: (project.resourceRequirements || []).map((req: any) => {
+            const resource = resourcePool.find(r => r.id === req.resourceId);
+            return {
+                requirement: req,
+                resourceInfo: resource
+            };
+        }),
+        risks: project.risks || [],
+        costs: project.costHistory || [],
+        exportDate: format(new Date(), 'yyyy-MM-dd HH:mm:ss')
+    };
+
+    const jsonContent = JSON.stringify(report, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${project.name}_report_${format(new Date(), 'yyyyMMdd')}.json`;
+    link.click();
+};

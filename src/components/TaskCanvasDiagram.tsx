@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Minus, Move, Flag, Edit3, Copy, Trash2, Link, X, Calendar } from 'lucide-react';
+import { Plus, Minus, Move, Edit3, Copy, Trash2, Link, X, Calendar } from 'lucide-react';
 import type { Task } from '../types';
 import { format, addDays, differenceInDays, parseISO, eachDayOfInterval } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -400,7 +400,6 @@ const TaskCanvasDiagram: React.FC<TaskCanvasDiagramProps> = ({
                     const x = dateToX(task.startDate);
                     const width = Math.max(MIN_TASK_WIDTH, dateToX(task.endDate) - x);
                     const height = task.height || DEFAULT_TASK_HEIGHT;
-                    const isSelected = activeTaskId === task.id;
                     const isConnecting = interactionMode === 'connect';
                     const isSource = connectingSourceId === task.id;
 
@@ -493,6 +492,24 @@ const TaskCanvasDiagram: React.FC<TaskCanvasDiagramProps> = ({
                 </button>
                 <button onClick={() => { setOffset({ x: 0, y: 0 }); setScale(1); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-600" title="重置视图">
                     <Move size={20} />
+                </button>
+                <div className="w-px h-6 bg-slate-200 mx-1" />
+                <button
+                    onClick={() => {
+                        const days = prompt('请输入要平移的天数 (负数向前，正数向后):', '0');
+                        if (days && !isNaN(parseInt(days)) && parseInt(days) !== 0) {
+                            const shift = parseInt(days);
+                            tasks.forEach(t => {
+                                const newStart = format(addDays(parseISO(t.startDate), shift), 'yyyy-MM-dd');
+                                const newEnd = format(addDays(parseISO(t.endDate), shift), 'yyyy-MM-dd');
+                                onTaskUpdate({ ...t, startDate: newStart, endDate: newEnd });
+                            });
+                        }
+                    }}
+                    className="p-2 hover:bg-slate-100 rounded-full text-slate-600"
+                    title="批量平移"
+                >
+                    <Calendar size={20} />
                 </button>
             </div>
 
