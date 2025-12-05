@@ -18,7 +18,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "framer-motion": "^12.23.24",
+    "framer-motion": "^12.23.25",
     "i18next": "^25.6.3",
     "i18next-browser-languagedetector": "^8.2.0",
     "immer": "^11.0.1",
@@ -30,7 +30,7 @@
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^2.2.3",
     "react-window-infinite-loader": "^2.0.0",
-    "recharts": "^3.5.0",
+    "recharts": "^3.5.1",
     "tailwind-merge": "^3.4.0",
     "use-immer": "^0.11.0",
     "zustand": "^5.0.8"
