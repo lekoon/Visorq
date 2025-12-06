@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ZoomIn, ZoomOut, Plus, Trash2, Edit2
+    ZoomIn, ZoomOut, Plus, Trash2, Edit2, Undo2, Redo2, Download
 } from 'lucide-react';
 import {
     format, addDays, differenceInDays, startOfWeek,
@@ -27,18 +27,27 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
     tasks,
     onTaskUpdate,
     onTaskDelete,
-    onTaskAdd
+    onTaskAdd,
+    onDependencyAdd,
+    onDependencyDelete
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [selection, setSelection] = useState<string | null>(null);
+    const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, taskId: string } | null>(null);
 
+    // History
+    const [history, setHistory] = useState<{
+        past: { oldTasks: Task[], newTasks: Task[] }[],
+        future: { oldTasks: Task[], newTasks: Task[] }[]
+    }>({ past: [], future: [] });
+
     // Interaction states
-    const [draggingTask, setDraggingTask] = useState<{ id: string, type: 'move' | 'resize-l' | 'resize-r' | 'link', startX: number, originalStart: Date, originalEnd: Date } | null>(null);
+    const [draggingTask, setDraggingTask] = useState<{ id: string, type: 'move' | 'resize-l' | 'resize-r' | 'link', startX: number, startY?: number, originalStart: Date, originalEnd: Date } | null>(null);
+    const [linkingState, setLinkingState] = useState<{ sourceId: string, endX: number, endY: number } | null>(null);
 
     // Calculate timeline range
     const { startDate, totalDays } = useMemo(() => {
@@ -65,11 +74,7 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
     // Handle Zoom
     const currentCellWidth = CELL_WIDTH * zoomLevel;
 
-    // Helper: Position to Date
-    const getDateFromX = (x: number) => {
-        const days = Math.floor(x / currentCellWidth);
-        return addDays(startDate, days);
-    };
+
 
     // Helper: Date to Position
     const getXFromDate = (date: Date | string) => {
@@ -83,7 +88,11 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
         if ((e.target as HTMLElement).classList.contains('gantt-bg')) {
             setIsDragging(true);
             setDragStart({ x: e.clientX - scrollPos.x, y: e.clientY - scrollPos.y });
-            setSelection(null);
+
+            // Clear selection if not modified
+            if (!e.shiftKey && !e.ctrlKey) {
+                setSelectedTasks(new Set());
+            }
             setContextMenu(null);
         }
     };
@@ -94,6 +103,18 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
                 x: e.clientX - dragStart.x,
                 y: e.clientY - dragStart.y
             });
+            return;
+        }
+
+        if (linkingState) {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) {
+                setLinkingState({
+                    ...linkingState,
+                    endX: e.clientX - rect.left - scrollPos.x,
+                    endY: e.clientY - rect.top - scrollPos.y
+                });
+            }
             return;
         }
 
@@ -114,36 +135,91 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
         }
     };
 
+    const handleUndo = () => {
+        if (history.past.length === 0) return;
+        const last = history.past[history.past.length - 1];
+        last.oldTasks.forEach(t => onTaskUpdate(t));
+        setHistory(prev => ({
+            past: prev.past.slice(0, -1),
+            future: [last, ...prev.future]
+        }));
+    };
+
+    const handleRedo = () => {
+        if (history.future.length === 0) return;
+        const next = history.future[0];
+        next.newTasks.forEach(t => onTaskUpdate(t));
+        setHistory(prev => ({
+            past: [...prev.past, next],
+            future: prev.future.slice(1)
+        }));
+    };
+
     const handleMouseUp = (e: React.MouseEvent) => {
         setIsDragging(false);
+        setLinkingState(null);
         setDraggingTask(null);
 
-        // Handle drop logic here if needed
+        // Handle drop logic
         if (draggingTask) {
             const dx = e.clientX - draggingTask.startX;
             const daysDelta = Math.round(dx / currentCellWidth);
 
             if (daysDelta !== 0) {
-                const task = tasks.find(t => t.id === draggingTask.id);
-                if (task) {
-                    const newStart = addDays(new Date(draggingTask.originalStart), daysDelta);
-                    const newEnd = addDays(new Date(draggingTask.originalEnd), daysDelta);
+                const affectedTasks: { old: Task, new: Task }[] = [];
 
-                    if (draggingTask.type === 'move') {
-                        onTaskUpdate({
-                            ...task,
-                            startDate: format(newStart, 'yyyy-MM-dd'),
-                            endDate: format(newEnd, 'yyyy-MM-dd')
-                        });
-                    } else if (draggingTask.type === 'resize-r') {
+                if (draggingTask.type === 'move') {
+                    // Batch move
+                    selectedTasks.forEach(id => {
+                        const t = tasks.find(k => k.id === id);
+                        if (t) {
+                            const s = addDays(parseISO(t.startDate), daysDelta);
+                            // Preserve duration for milestones (start=end if 0 duration, or just shift both)
+                            // If type is milestone, usually duration is 0 or 1 day. 
+                            // This logic works fine for both.
+                            const e = addDays(parseISO(t.endDate), daysDelta);
+                            affectedTasks.push({
+                                old: t,
+                                new: { ...t, startDate: format(s, 'yyyy-MM-dd'), endDate: format(e, 'yyyy-MM-dd') }
+                            });
+                        }
+                    });
+                } else if (draggingTask.type === 'resize-r') {
+                    const task = tasks.find(t => t.id === draggingTask.id);
+                    if (task) {
                         const newEndDate = addDays(new Date(draggingTask.originalEnd), daysDelta);
                         if (differenceInDays(newEndDate, new Date(task.startDate)) >= 0) {
-                            onTaskUpdate({
-                                ...task,
-                                endDate: format(newEndDate, 'yyyy-MM-dd')
+                            affectedTasks.push({
+                                old: task,
+                                new: { ...task, endDate: format(newEndDate, 'yyyy-MM-dd') }
                             });
                         }
                     }
+                } else if (draggingTask.type === 'resize-l') {
+                    const task = tasks.find(t => t.id === draggingTask.id);
+                    if (task) {
+                        const newStartDate = addDays(new Date(draggingTask.originalStart), daysDelta);
+                        if (differenceInDays(new Date(task.endDate), newStartDate) >= 0) {
+                            affectedTasks.push({
+                                old: task,
+                                new: { ...task, startDate: format(newStartDate, 'yyyy-MM-dd') }
+                            });
+                        }
+                    }
+                }
+
+                if (affectedTasks.length > 0) {
+                    // Update History
+                    setHistory(prev => ({
+                        past: [...prev.past, {
+                            oldTasks: affectedTasks.map(x => x.old),
+                            newTasks: affectedTasks.map(x => x.new)
+                        }],
+                        future: []
+                    }));
+
+                    // Apply Updates
+                    affectedTasks.forEach(x => onTaskUpdate(x.new));
                 }
             }
         }
@@ -153,6 +229,23 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
     const handleTaskDragStart = (e: React.MouseEvent, task: Task, type: 'move' | 'resize-l' | 'resize-r') => {
         e.stopPropagation();
         e.preventDefault();
+
+        if (type === 'move') {
+            let newSelection = new Set(selectedTasks);
+            if (e.shiftKey || e.ctrlKey) {
+                if (!newSelection.has(task.id)) {
+                    newSelection.add(task.id);
+                }
+            } else {
+                if (!newSelection.has(task.id)) {
+                    newSelection = new Set([task.id]);
+                }
+            }
+            setSelectedTasks(newSelection);
+        } else {
+            setSelectedTasks(new Set([task.id]));
+        }
+
         setDraggingTask({
             id: task.id,
             type,
@@ -160,8 +253,36 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
             originalStart: new Date(task.startDate),
             originalEnd: new Date(task.endDate)
         });
-        setSelection(task.id);
         setContextMenu(null);
+    };
+
+    const startLinking = (e: React.MouseEvent, sourceId: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+            // Calculate start position relative to container content
+            // However, mouse event gives client coordinates.
+            // We need to store initial position to draw the line.
+            // But simplify: just use linkingState to track end point, 
+            // and we know the source task's position.
+            setLinkingState({
+                sourceId,
+                endX: e.clientX - rect.left - scrollPos.x,
+                endY: e.clientY - rect.top - scrollPos.y
+            });
+        }
+    };
+
+    const finishLinking = (e: React.MouseEvent, targetId: string) => {
+        e.stopPropagation();
+        // e.preventDefault(); // Don't prevent default to allow click to register
+        if (linkingState && linkingState.sourceId !== targetId) {
+            if (onDependencyAdd) {
+                onDependencyAdd(linkingState.sourceId, targetId);
+            }
+        }
+        setLinkingState(null);
     };
 
     return (
@@ -184,6 +305,38 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleUndo}
+                        disabled={history.past.length === 0}
+                        className={`p-1.5 rounded ${history.past.length === 0 ? 'text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}
+                        title="撤销 (Ctrl+Z)"
+                    >
+                        <Undo2 size={18} />
+                    </button>
+                    <button
+                        onClick={handleRedo}
+                        disabled={history.future.length === 0}
+                        className={`p-1.5 rounded ${history.future.length === 0 ? 'text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}
+                        title="重做 (Ctrl+Y)"
+                    >
+                        <Redo2 size={18} />
+                    </button>
+                    <div className="w-px h-6 bg-slate-200 mx-1" />
+                    <button
+                        onClick={() => {
+                            const data = JSON.stringify(tasks, null, 2);
+                            const blob = new Blob([data], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `gantt-export-${format(new Date(), 'yyyyMMdd')}.json`;
+                            a.click();
+                        }}
+                        className="p-1.5 hover:bg-slate-100 rounded text-slate-600"
+                        title="导出 JSON"
+                    >
+                        <Download size={18} />
+                    </button>
                     <button className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100"
                         onClick={() => onTaskAdd({ startDate: format(new Date(), 'yyyy-MM-dd'), endDate: format(addDays(new Date(), 2), 'yyyy-MM-dd') })}
                     >
@@ -270,12 +423,47 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
                             const x = getXFromDate(task.startDate);
                             const width = Math.max(currentCellWidth, differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) * currentCellWidth + currentCellWidth);
                             const top = index * ROW_HEIGHT + 20;
-                            const isSelected = selection === task.id;
+                            const isSelected = selectedTasks.has(task.id);
 
                             // Calculate drag offset if this task is being dragged
                             if (draggingTask && draggingTask.id === task.id) {
                                 // This assumes we track live delta. 
                                 // For smoother UI, we can use local state for immediate feedback
+                            }
+
+                            if (task.type === 'milestone') {
+                                return (
+                                    <motion.div
+                                        key={task.id}
+                                        className={`absolute group w-6 h-6 rotate-45 border shadow-sm z-10 
+                                            ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1 bg-amber-200 border-amber-400' : 'bg-amber-300 border-amber-500 hover:shadow-md'}
+                                        `}
+                                        style={{
+                                            left: x + currentCellWidth / 2 - 12, // Center in cell
+                                            top: top + 6, // Adjust vertical
+                                            cursor: 'move'
+                                        }}
+                                        onMouseDown={(e) => handleTaskDragStart(e, task, 'move')}
+                                        onContextMenu={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            setContextMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
+                                            if (!selectedTasks.has(task.id)) {
+                                                setSelectedTasks(new Set([task.id]));
+                                            }
+                                        }}
+                                    >
+                                        {/* Link Points for Milestone */}
+                                        <div
+                                            className="absolute top-0 right-0 w-2 h-2 -translate-y-1/2 translate-x-1/2 bg-white border border-slate-400 rounded-full opacity-0 group-hover:opacity-100 cursor-crosshair -rotate-45"
+                                            onMouseDown={(e) => startLinking(e, task.id)}
+                                            onMouseUp={(e) => finishLinking(e, task.id)}
+                                        />
+                                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap -rotate-45 font-medium text-slate-700 pointer-events-none">
+                                            {task.name}
+                                        </div>
+                                    </motion.div>
+                                );
                             }
 
                             return (
@@ -296,7 +484,9 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
                                         e.stopPropagation();
                                         e.preventDefault();
                                         setContextMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
-                                        setSelection(task.id);
+                                        if (!selectedTasks.has(task.id)) {
+                                            setSelectedTasks(new Set([task.id]));
+                                        }
                                     }}
                                 >
                                     {/* Progress Bar */}
@@ -315,13 +505,24 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
 
                                     {/* Resize Handles */}
                                     <div
-                                        className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-blue-500/50 rounded-r-lg"
+                                        className="absolute top-0 left-0 w-2 h-full cursor-col-resize hover:bg-blue-500/50 rounded-l-lg z-20"
+                                        onMouseDown={(e) => handleTaskDragStart(e, task, 'resize-l')}
+                                    />
+                                    <div
+                                        className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-blue-500/50 rounded-r-lg z-20"
                                         onMouseDown={(e) => handleTaskDragStart(e, task, 'resize-r')}
                                     />
 
                                     {/* Link Points (Visible on hover) */}
-                                    <div className="absolute top-1/2 -right-3 w-3 h-3 bg-white border-2 border-slate-400 rounded-full opacity-0 group-hover:opacity-100 hover:border-blue-500 hover:scale-110 transition-all cursor-crosshair shadow-sm" />
-                                    <div className="absolute top-1/2 -left-3 w-3 h-3 bg-white border-2 border-slate-400 rounded-full opacity-0 group-hover:opacity-100 hover:border-blue-500 hover:scale-110 transition-all cursor-crosshair shadow-sm" />
+                                    <div
+                                        className="absolute top-1/2 -right-3 w-3 h-3 bg-white border-2 border-slate-400 rounded-full opacity-0 group-hover:opacity-100 hover:border-blue-500 hover:scale-110 transition-all cursor-crosshair shadow-sm z-30"
+                                        onMouseDown={(e) => startLinking(e, task.id)}
+                                        onMouseUp={(e) => finishLinking(e, task.id)}
+                                    />
+                                    <div
+                                        className="absolute top-1/2 -left-3 w-3 h-3 bg-white border-2 border-slate-400 rounded-full opacity-0 group-hover:opacity-100 hover:border-blue-500 hover:scale-110 transition-all cursor-crosshair shadow-sm z-30"
+                                        onMouseUp={(e) => finishLinking(e, task.id)}
+                                    />
                                 </motion.div>
                             );
                         })}
@@ -360,10 +561,36 @@ const InteractiveGanttChart: React.FC<InteractiveGanttChartProps> = ({
                                             fill="none"
                                             markerEnd="url(#arrowhead)"
                                             className="hover:stroke-blue-500 cursor-pointer"
+                                            onDoubleClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onDependencyDelete) {
+                                                    onDependencyDelete(sourceTask.id, targetTask.id);
+                                                }
+                                            }}
                                         />
                                     );
                                 })
                             )}
+
+                            {/* Temporary Linking Line */}
+                            {linkingState && (() => {
+                                const sourceTask = tasks.find(t => t.id === linkingState.sourceId);
+                                if (!sourceTask) return null;
+                                const startX = getXFromDate(sourceTask.endDate) + currentCellWidth;
+                                const startY = tasks.findIndex(t => t.id === sourceTask.id) * ROW_HEIGHT + 20 + 16;
+                                return (
+                                    <line
+                                        x1={startX}
+                                        y1={startY}
+                                        x2={linkingState.endX}
+                                        y2={linkingState.endY}
+                                        stroke="#3b82f6"
+                                        strokeWidth="2"
+                                        strokeDasharray="5 5"
+                                        markerEnd="url(#arrowhead)"
+                                    />
+                                );
+                            })()}
                         </svg>
                     </div>
                 </div>
