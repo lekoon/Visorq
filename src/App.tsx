@@ -2,7 +2,6 @@ import React, { Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useUser } from './store/useStore';
 import Layout from './components/Layout';
-import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp';
 import PerformanceMonitor from './components/PerformanceMonitor';
@@ -26,10 +25,12 @@ const TemplateManager = lazy(() => import('./pages/TemplateManager'));
 const BatchImport = lazy(() => import('./pages/BatchImport'));
 const DeliveryEfficiency = lazy(() => import('./pages/DeliveryEfficiency'));
 
+import SkeletonLoader from './components/SkeletonLoader';
+
 // Loading fallback component
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-screen">
-    <LoadingSpinner />
+  <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <SkeletonLoader />
   </div>
 );
 
