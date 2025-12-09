@@ -1,0 +1,1 @@
+import{e as o}from"./index-BzWWaURa.js";const t=[["path",{d:"M5 21v-6",key:"1hz6c0"}],["path",{d:"M12 21V3",key:"1lcnhd"}],["path",{d:"M19 21V9",key:"unv183"}]],h=o("chart-no-axes-column",t);const e=[["path",{d:"m9 18 6-6-6-6",key:"mthhwq"}]],n=o("chevron-right",e);export{n as C,h as a};
