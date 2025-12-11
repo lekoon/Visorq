@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FolderKanban, PieChart, Settings, Users, LogOut, Moon, Sun, Bell, Check, Trash2, Brain, FileText, Copy, Upload, TrendingUp, Search } from 'lucide-react';
+import {
+    LayoutDashboard, FolderKanban, PieChart, Settings, Users, LogOut,
+    Moon, Sun, Bell, Check, Trash2, Brain, FileText, Copy, Upload,
+    TrendingUp, Search, Shield, BarChart3, Briefcase
+} from 'lucide-react';
 import { checkDeadlines, checkResourceConflicts } from '../utils/notifications';
 import clsx from 'clsx';
 import { useStore } from '../store/useStore';
@@ -49,43 +53,82 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     const unreadCount = alerts.filter(a => !a.read).length;
 
-    // Main Navigation Categories
+    // PMO-Oriented Main Navigation Categories
     const mainNavItems = [
-        { label: '首页', path: '/', icon: LayoutDashboard },
-        { label: '项目管理', path: '/projects', icon: FolderKanban, activePrefix: '/projects' },
-        { label: '资源管理', path: '/resources', icon: Users, activePrefix: '/resources' },
-        { label: '交付效率', path: '/delivery-efficiency', icon: TrendingUp, activePrefix: '/delivery-efficiency' },
-        { label: '成本分析', path: '/analysis', icon: PieChart, activePrefix: '/analysis' },
-        { label: '决策支持', path: '/ai-decision', icon: Brain, activePrefix: '/ai-decision' },
+        {
+            label: '工作台',
+            path: '/',
+            icon: LayoutDashboard,
+            description: 'PMO 总览'
+        },
+        {
+            label: '项目组合',
+            path: '/projects',
+            icon: Briefcase,
+            activePrefix: '/projects',
+            description: '项目管理'
+        },
+        {
+            label: '资源团队',
+            path: '/resources',
+            icon: Users,
+            activePrefix: '/resources',
+            description: '资源与人员'
+        },
+        {
+            label: '风险质量',
+            path: '/delivery-efficiency',
+            icon: Shield,
+            activePrefix: '/delivery-efficiency',
+            description: '风险与交付'
+        },
+        {
+            label: '分析报告',
+            path: '/analysis',
+            icon: BarChart3,
+            activePrefix: '/analysis',
+            description: '数据与洞察'
+        },
     ];
 
-    // Sub Navigation Items based on current category
+    // Enhanced Sub Navigation with better categorization
     const getSubNavItems = () => {
         const path = location.pathname;
+
+        // 项目组合管理
         if (path.startsWith('/projects')) {
             return [
-                { label: '项目列表', path: '/projects', icon: FolderKanban },
-                { label: '项目模板', path: '/projects/templates', icon: Copy },
-                { label: '批量导入', path: '/projects/import', icon: Upload },
+                { label: '项目列表', path: '/projects', icon: FolderKanban, description: '所有项目' },
+                { label: '项目模板', path: '/projects/templates', icon: Copy, description: '快速创建' },
+                { label: '批量导入', path: '/projects/import', icon: Upload, description: '数据导入' },
             ];
         }
+
+        // 资源与团队管理
         if (path.startsWith('/resources')) {
             return [
-                { label: '资源池', path: '/resources', icon: Users },
-                // Add more if we split resources page
+                { label: '资源总览', path: '/resources', icon: Users, description: '资源池管理' },
+                { label: '成本分析', path: '/analysis', icon: PieChart, description: '成本控制' },
             ];
         }
-        if (path.startsWith('/analysis')) {
+
+        // 风险与质量管理
+        if (path.startsWith('/delivery-efficiency')) {
             return [
-                { label: '成本分析', path: '/analysis', icon: PieChart },
+                { label: '交付效率', path: '/delivery-efficiency', icon: TrendingUp, description: '效率指标' },
+                { label: 'AI 决策', path: '/ai-decision', icon: Brain, description: '智能建议' },
             ];
         }
-        if (path.startsWith('/ai-decision') || path.startsWith('/reports')) {
+
+        // 分析与报告
+        if (path.startsWith('/analysis') || path.startsWith('/ai-decision') || path.startsWith('/reports')) {
             return [
-                { label: 'AI 智能决策', path: '/ai-decision', icon: Brain },
-                { label: '高级报表', path: '/reports', icon: FileText },
+                { label: '成本分析', path: '/analysis', icon: PieChart, description: '财务视图' },
+                { label: 'AI 决策', path: '/ai-decision', icon: Brain, description: '智能分析' },
+                { label: '高级报表', path: '/reports', icon: FileText, description: '定制报告' },
             ];
         }
+
         return [];
     };
 
@@ -184,10 +227,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                         alerts.map(alert => (
                                             <div
                                                 key={alert.id}
-                                                className={`p-4 border-b border-slate-50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${alert.read ? 'opacity-60' : 'bg-blue-50/30 dark:bg-blue-900/10'}`}
+                                                className={`p - 4 border - b border - slate - 50 dark: border - slate - 700 hover: bg - slate - 50 dark: hover: bg - slate - 700 / 50 transition - colors ${alert.read ? 'opacity-60' : 'bg-blue-50/30 dark:bg-blue-900/10'} `}
                                             >
                                                 <div className="flex gap-3">
-                                                    <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${alert.type === 'error' ? 'bg-red-500' : alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'}`} />
+                                                    <div className={`mt - 1 w - 2 h - 2 rounded - full shrink - 0 ${alert.type === 'error' ? 'bg-red-500' : alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'} `} />
                                                     <div className="flex-1">
                                                         <p className="text-sm text-slate-800 dark:text-slate-200 mb-1">{alert.message}</p>
                                                         <div className="flex justify-between items-center">
@@ -267,26 +310,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Sub Navigation Bar (Only if items exist) */}
             {subNavItems.length > 0 && (
-                <div className="h-12 bg-white dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center px-6 backdrop-blur-sm z-10 shrink-0">
-                    <div className="flex items-center gap-1">
-                        {subNavItems.map((item) => {
-                            const isActive = location.pathname === item.path;
-                            return (
-                                <Link
-                                    key={item.path}
-                                    to={item.path}
-                                    className={clsx(
-                                        "px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-2",
-                                        isActive
-                                            ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                                            : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-slate-700 dark:hover:text-slate-300"
-                                    )}
-                                >
-                                    <item.icon size={14} />
-                                    {item.label}
-                                </Link>
-                            );
-                        })}
+                <div className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-800/30 border-b border-slate-200 dark:border-slate-700 backdrop-blur-sm z-10 shrink-0">
+                    <div className="px-6 py-3">
+                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                            {subNavItems.map((item) => {
+                                const isActive = location.pathname === item.path;
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        className={clsx(
+                                            "group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap",
+                                            isActive
+                                                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-100 dark:ring-blue-900/50"
+                                                : "text-slate-600 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60 hover:text-slate-900 dark:hover:text-slate-200"
+                                        )}
+                                        title={item.description}
+                                    >
+                                        <item.icon size={16} className={isActive ? "text-blue-600 dark:text-blue-400" : ""} />
+                                        <span>{item.label}</span>
+                                        {item.description && !isActive && (
+                                            <span className="hidden xl:inline text-xs text-slate-400 dark:text-slate-500 ml-1">
+                                                · {item.description}
+                                            </span>
+                                        )}
+                                        {isActive && (
+                                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full" />
+                                        )}
+                                    </Link>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             )}
