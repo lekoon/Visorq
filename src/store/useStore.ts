@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate } from '../types';
+import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate, ProjectBaseline } from '../types';
 import { calculateProjectScore, rankProjects } from '../utils/algorithm';
+import { createBaseline as createBaselineSnapshot } from '../utils/baselineManagement';
 
 interface StoreState {
     user: User | null;
@@ -45,6 +46,10 @@ interface StoreState {
     updateTemplate: (id: string, updates: Partial<ProjectTemplate>) => void;
     deleteTemplate: (id: string) => void;
     createProjectFromTemplate: (templateId: string, projectName: string) => Project;
+
+    // Baseline Management
+    createBaseline: (projectId: string, name: string, description: string) => void;
+    setActiveBaseline: (projectId: string, baselineId: string) => void;
 }
 
 // Default data
@@ -312,6 +317,40 @@ export const useStore = create<StoreState>()(
 
                     return newProject;
                 },
+
+                // Baseline Management
+                createBaseline: (projectId, name, description) => set((state) => {
+                    const project = state.projects.find(p => p.id === projectId);
+                    if (!project || !state.user) return state;
+
+                    const baseline = createBaselineSnapshot(
+                        project,
+                        name,
+                        description,
+                        state.user.id,
+                        state.user.name || state.user.username
+                    );
+
+                    const updatedProjects = state.projects.map(p =>
+                        p.id === projectId
+                            ? {
+                                ...p,
+                                baselines: [...(p.baselines || []), baseline],
+                                activeBaselineId: p.activeBaselineId || baseline.id
+                            }
+                            : p
+                    );
+
+                    return { projects: updatedProjects };
+                }, false, 'baseline/create'),
+
+                setActiveBaseline: (projectId, baselineId) => set((state) => ({
+                    projects: state.projects.map(p =>
+                        p.id === projectId
+                            ? { ...p, activeBaselineId: baselineId }
+                            : p
+                    )
+                }), false, 'baseline/setActive'),
             }),
             {
                 name: 'visorq-storage',

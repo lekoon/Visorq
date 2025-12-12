@@ -25,6 +25,7 @@ const TemplateManager = lazy(() => import('./pages/TemplateManager'));
 const BatchImport = lazy(() => import('./pages/BatchImport'));
 const DeliveryEfficiency = lazy(() => import('./pages/DeliveryEfficiency'));
 const RiskManagement = lazy(() => import('./pages/RiskManagement'));
+const PortfolioDashboard = lazy(() => import('./pages/PortfolioDashboard'));
 
 import SkeletonLoader from './components/SkeletonLoader';
 
@@ -85,6 +86,7 @@ function App() {
           <Route path="/delivery-efficiency" element={<LayoutRoute><DeliveryEfficiency /></LayoutRoute>} />
 
           {/* Analysis & Reports */}
+          <Route path="/portfolio" element={<LayoutRoute><PortfolioDashboard /></LayoutRoute>} />
           <Route path="/analysis" element={<LayoutRoute><Analysis /></LayoutRoute>} />
           <Route path="/ai-decision" element={<LayoutRoute><AIDecisionDashboard /></LayoutRoute>} />
           <Route path="/reports" element={<LayoutRoute><AdvancedReports /></LayoutRoute>} />

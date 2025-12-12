@@ -265,6 +265,202 @@ export interface Project {
     risks?: Risk[];
 
     estimatedCost?: number; // 预估成本（向后兼容）
+
+    // Baseline Management (基线管理)
+    baselines?: ProjectBaseline[];
+    activeBaselineId?: string; // 当前激活的基线ID
+}
+
+// ==================== PMO Enhancement Types ====================
+
+// 1. Baseline Management (基线管理)
+export interface ProjectBaseline {
+    id: string;
+    name: string; // e.g., "Baseline 1.0", "Re-baseline after scope change"
+    description?: string;
+    createdDate: string;
+    createdBy: string;
+    createdByName?: string;
+
+    // Snapshot of project state
+    snapshot: {
+        startDate: string;
+        endDate: string;
+        budget: number;
+        tasks: Task[]; // Full task list with dates
+        milestones: Milestone[];
+        resourceRequirements: ResourceRequirement[];
+    };
+}
+
+export interface VarianceMetrics {
+    scheduleVariance: number; // Days difference (negative = behind schedule)
+    costVariance: number; // Budget difference (negative = over budget)
+    startDateVariance: number; // Days
+    endDateVariance: number; // Days
+    budgetVariancePercent: number; // Percentage
+}
+
+// 2. Earned Value Management (挣值管理)
+export interface EVMMetrics {
+    projectId: string;
+    asOfDate: string;
+
+    // Core EVM Values
+    plannedValue: number; // PV - 计划价值
+    earnedValue: number; // EV - 挣值
+    actualCost: number; // AC - 实际成本
+
+    // Performance Indices
+    schedulePerformanceIndex: number; // SPI = EV / PV
+    costPerformanceIndex: number; // CPI = EV / AC
+
+    // Variance
+    scheduleVariance: number; // SV = EV - PV
+    costVariance: number; // CV = EV - AC
+
+    // Forecasts
+    estimateAtCompletion: number; // EAC
+    estimateToComplete: number; // ETC
+    varianceAtCompletion: number; // VAC
+    toCompletePerformanceIndex: number; // TCPI
+}
+
+// 3. Stage-Gate Process (阶段门径)
+export type ProjectStage = 'initiation' | 'planning' | 'execution' | 'monitoring' | 'closing';
+export type GateStatus = 'pending' | 'approved' | 'rejected' | 'conditional';
+
+export interface StageGate {
+    id: string;
+    stage: ProjectStage;
+    name: string; // e.g., "Gate 1: Project Charter Approval"
+    description: string;
+
+    // Requirements (Checklist)
+    requirements: GateRequirement[];
+
+    // Approval
+    status: GateStatus;
+    approvedBy?: string;
+    approvedByName?: string;
+    approvalDate?: string;
+    comments?: string;
+    conditions?: string[]; // If status is 'conditional'
+}
+
+export interface GateRequirement {
+    id: string;
+    description: string; // e.g., "Risk Assessment completed"
+    required: boolean;
+    completed: boolean;
+    completedDate?: string;
+    completedBy?: string;
+    evidence?: string; // Link to document or description
+}
+
+export interface ProjectWithStageGate extends Project {
+    currentStage: ProjectStage;
+    gates: StageGate[];
+}
+
+// 4. Resource Governance (资源治理)
+export type ResourceRequestStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'allocated';
+export type BookingType = 'soft' | 'hard'; // Soft = tentative, Hard = confirmed
+
+export interface ResourceRequest {
+    id: string;
+    projectId: string;
+    projectName: string;
+    requestedBy: string; // PM user ID
+    requestedByName?: string;
+    requestDate: string;
+
+    // Resource Details
+    roleRequired: string; // e.g., "Senior Frontend Developer"
+    skillsRequired: string[];
+    quantity: number;
+    startDate: string;
+    endDate: string;
+    hoursPerWeek: number;
+
+    // Approval
+    status: ResourceRequestStatus;
+    reviewedBy?: string;
+    reviewedByName?: string;
+    reviewDate?: string;
+    reviewComments?: string;
+
+    // Allocation (if approved)
+    allocatedResourceId?: string;
+    allocatedResourceName?: string;
+    bookingType?: BookingType;
+}
+
+// 5. Portfolio Dashboard (组合仪表盘)
+export type RAGStatus = 'red' | 'amber' | 'green';
+
+export interface ProjectHealthIndicators {
+    projectId: string;
+    projectName: string;
+
+    // RAG Status for different dimensions
+    scheduleHealth: RAGStatus;
+    budgetHealth: RAGStatus;
+    scopeHealth: RAGStatus;
+    qualityHealth: RAGStatus;
+    riskHealth: RAGStatus;
+
+    // Overall
+    overallHealth: RAGStatus;
+
+    // Trend (compared to last period)
+    trend: 'improving' | 'stable' | 'declining';
+}
+
+export interface PortfolioMetrics {
+    totalProjects: number;
+    activeProjects: number;
+    completedProjects: number;
+    onHoldProjects: number;
+
+    // Financial
+    totalBudget: number;
+    totalSpent: number;
+    totalValue: number; // Expected business value
+
+    // Health Distribution
+    healthDistribution: {
+        green: number;
+        amber: number;
+        red: number;
+    };
+
+    // Risk
+    totalRiskExposure: number; // Sum of all risk impacts
+    criticalRisks: number;
+
+    // Resources
+    totalResourcesAllocated: number;
+    resourceUtilizationRate: number; // Percentage
+}
+
+// 6. Cross-Project Dependencies (跨项目依赖)
+export interface CrossProjectDependency {
+    id: string;
+    sourceProjectId: string;
+    sourceProjectName: string;
+    targetProjectId: string;
+    targetProjectName: string;
+
+    dependencyType: 'finish-to-start' | 'start-to-start' | 'finish-to-finish' | 'start-to-finish';
+    description: string;
+
+    // Impact
+    criticalPath: boolean; // Is this on the critical path?
+    lagDays?: number; // Delay between projects
+
+    status: 'active' | 'resolved' | 'broken';
+    createdDate: string;
 }
 
 // Default Factors (for initialization)

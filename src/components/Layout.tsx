@@ -121,8 +121,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
 
         // 分析与报告
-        if (path.startsWith('/analysis') || path.startsWith('/ai-decision') || path.startsWith('/reports')) {
+        if (path.startsWith('/analysis') || path.startsWith('/ai-decision') || path.startsWith('/reports') || path.startsWith('/portfolio')) {
             return [
+                { label: '项目组合', path: '/portfolio', icon: Briefcase, description: 'PMO 总览' },
                 { label: '成本分析', path: '/analysis', icon: PieChart, description: '财务视图' },
                 { label: 'AI 决策', path: '/ai-decision', icon: Brain, description: '智能分析' },
                 { label: '高级报表', path: '/reports', icon: FileText, description: '定制报告' },
