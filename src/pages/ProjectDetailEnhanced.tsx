@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore, useResourcePool } from '../store/useStore';
-import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle, BarChart3, Target, GitBranch } from 'lucide-react';
+import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle, BarChart3, Target, GitBranch, GitMerge } from 'lucide-react';
 import SmartTaskView from '../components/SmartTaskView';
 import ProjectResourceDetail from '../components/ProjectResourceDetail';
 import RiskAssessment from '../components/RiskAssessment';
@@ -10,8 +10,10 @@ import ProjectScoringPanel from '../components/ProjectScoringPanel';
 import EnhancedHealthVisualization from '../components/EnhancedHealthVisualization';
 import CostControlPanel from '../components/CostControlPanel';
 import BaselineHistory from '../components/BaselineHistory';
+import StageGateWorkflow from '../components/StageGateWorkflow';
 import { calculateProjectHealth } from '../utils/projectHealth';
-import type { CostEntry, Task } from '../types';
+import { DEFAULT_STAGE_GATES, getNextStage } from '../utils/stageGateManagement';
+import type { CostEntry, Task, ProjectWithStageGate, StageGate, ProjectStage } from '../types';
 
 const ProjectDetailEnhanced: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
@@ -23,7 +25,7 @@ const ProjectDetailEnhanced: React.FC = () => {
 
     // Initialize state
     const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks' | 'analytics' | 'strategy' | 'baseline'>('diagram');
+    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks' | 'analytics' | 'strategy' | 'baseline' | 'stagegate'>('diagram');
     const [isCostFormOpen, setIsCostFormOpen] = useState(false);
 
     if (!project) {
@@ -212,6 +214,12 @@ const ProjectDetailEnhanced: React.FC = () => {
                     >
                         <GitBranch size={16} /> 基线管理
                     </button>
+                    <button
+                        onClick={() => setActiveTab('stagegate')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${activeTab === 'stagegate' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <GitMerge size={16} /> 阶段门径
+                    </button>
                 </div>
             </div>
 
@@ -337,6 +345,42 @@ const ProjectDetailEnhanced: React.FC = () => {
                             }}
                             currentUserId="current-user"
                             currentUserName={project.manager || "项目经理"}
+                        />
+                    </div>
+                )}
+
+                {/* 阶段门径视图 */}
+                {activeTab === 'stagegate' && (
+                    <div className="h-full overflow-auto p-6 max-w-7xl mx-auto">
+                        <StageGateWorkflow
+                            project={{
+                                ...project,
+                                currentStage: (project as any).currentStage || 'initiation',
+                                gates: (project as any).gates || DEFAULT_STAGE_GATES.standard
+                            } as ProjectWithStageGate}
+                            onUpdateGate={(gate: StageGate) => {
+                                const currentGates = (project as any).gates || DEFAULT_STAGE_GATES.standard;
+                                const updatedGates = currentGates.map((g: StageGate) =>
+                                    g.id === gate.id ? gate : g
+                                );
+                                updateProject(project.id, {
+                                    ...project,
+                                    gates: updatedGates
+                                } as any);
+                            }}
+                            onMoveToNextStage={() => {
+                                const currentStage = (project as any).currentStage || 'initiation';
+                                const nextStage = getNextStage(currentStage as ProjectStage);
+                                if (nextStage) {
+                                    updateProject(project.id, {
+                                        ...project,
+                                        currentStage: nextStage
+                                    } as any);
+                                }
+                            }}
+                            currentUserId="current-user"
+                            currentUserName={project.manager || "项目经理"}
+                            userRole="admin"
                         />
                     </div>
                 )}
