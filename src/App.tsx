@@ -27,6 +27,7 @@ const DeliveryEfficiency = lazy(() => import('./pages/DeliveryEfficiency'));
 const RiskManagement = lazy(() => import('./pages/RiskManagement'));
 const PortfolioDashboard = lazy(() => import('./pages/PortfolioDashboard'));
 const EVMAnalysis = lazy(() => import('./pages/EVMAnalysis'));
+const DependencyAnalysis = lazy(() => import('./pages/DependencyAnalysis'));
 
 import SkeletonLoader from './components/SkeletonLoader';
 
@@ -89,6 +90,7 @@ function App() {
           {/* Analysis & Reports */}
           <Route path="/portfolio" element={<LayoutRoute><PortfolioDashboard /></LayoutRoute>} />
           <Route path="/evm" element={<LayoutRoute><EVMAnalysis /></LayoutRoute>} />
+          <Route path="/dependencies" element={<LayoutRoute><DependencyAnalysis /></LayoutRoute>} />
           <Route path="/analysis" element={<LayoutRoute><Analysis /></LayoutRoute>} />
           <Route path="/ai-decision" element={<LayoutRoute><AIDecisionDashboard /></LayoutRoute>} />
           <Route path="/reports" element={<LayoutRoute><AdvancedReports /></LayoutRoute>} />
