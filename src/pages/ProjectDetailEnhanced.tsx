@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore, useResourcePool } from '../store/useStore';
-import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle, BarChart3, Target } from 'lucide-react';
+import { ArrowLeft, Edit2, Check, DollarSign, Layout, Users, AlertTriangle, BarChart3, Target, GitBranch } from 'lucide-react';
 import SmartTaskView from '../components/SmartTaskView';
 import ProjectResourceDetail from '../components/ProjectResourceDetail';
 import RiskAssessment from '../components/RiskAssessment';
@@ -9,6 +9,7 @@ import CostRegistrationForm from '../components/CostRegistrationForm';
 import ProjectScoringPanel from '../components/ProjectScoringPanel';
 import EnhancedHealthVisualization from '../components/EnhancedHealthVisualization';
 import CostControlPanel from '../components/CostControlPanel';
+import BaselineHistory from '../components/BaselineHistory';
 import { calculateProjectHealth } from '../utils/projectHealth';
 import type { CostEntry, Task } from '../types';
 
@@ -22,7 +23,7 @@ const ProjectDetailEnhanced: React.FC = () => {
 
     // Initialize state
     const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks' | 'analytics' | 'strategy'>('diagram');
+    const [activeTab, setActiveTab] = useState<'diagram' | 'resources' | 'costs' | 'risks' | 'analytics' | 'strategy' | 'baseline'>('diagram');
     const [isCostFormOpen, setIsCostFormOpen] = useState(false);
 
     if (!project) {
@@ -205,6 +206,12 @@ const ProjectDetailEnhanced: React.FC = () => {
                     >
                         <Target size={16} /> 战略评分
                     </button>
+                    <button
+                        onClick={() => setActiveTab('baseline')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-all ${activeTab === 'baseline' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <GitBranch size={16} /> 基线管理
+                    </button>
                 </div>
             </div>
 
@@ -307,6 +314,31 @@ const ProjectDetailEnhanced: React.FC = () => {
                         project={project}
                         resourcePool={resourcePool}
                     />
+                )}
+
+                {/* 基线管理视图 */}
+                {activeTab === 'baseline' && (
+                    <div className="h-full overflow-auto p-6 max-w-7xl mx-auto">
+                        <BaselineHistory
+                            project={project}
+                            onCreateBaseline={(baseline) => {
+                                const updatedBaselines = [...(project.baselines || []), baseline];
+                                updateProject(project.id, {
+                                    ...project,
+                                    baselines: updatedBaselines,
+                                    activeBaselineId: baseline.id
+                                });
+                            }}
+                            onSetActiveBaseline={(baselineId) => {
+                                updateProject(project.id, {
+                                    ...project,
+                                    activeBaselineId: baselineId
+                                });
+                            }}
+                            currentUserId="current-user"
+                            currentUserName={project.manager || "项目经理"}
+                        />
+                    </div>
                 )}
             </div>
 
