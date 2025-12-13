@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, AlertTriangle, CheckCircle, Clock, Download, AlertCircle, DollarSign, Users } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
+import { PageContainer, PageHeader, StatCard, Card, Button, Badge } from '../components/ui';
 
 const Dashboard: React.FC = () => {
     const { projects, resourcePool } = useStore();
@@ -104,83 +105,50 @@ const Dashboard: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8">
+        <PageContainer>
             {/* Header with Export */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.title')}</h1>
-                    <p className="text-slate-500 mt-1">{t('dashboard.subtitle')}</p>
-                </div>
-                <button
-                    onClick={exportToCSV}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
-                >
-                    <Download size={18} />
-                    {t('common.export')}
-                </button>
-            </div>
+            <PageHeader
+                title={t('dashboard.title')}
+                description={t('dashboard.subtitle')}
+                actions={
+                    <Button onClick={exportToCSV} variant="primary" icon={Download}>
+                        {t('common.export')}
+                    </Button>
+                }
+            />
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-blue-100 text-blue-600 rounded-xl">
-                            <TrendingUp size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.totalProjects')}</p>
-                            <h3 className="text-2xl font-bold text-slate-900">{totalProjects}</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-green-100 text-green-600 rounded-xl">
-                            <Clock size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.active')}</p>
-                            <h3 className="text-2xl font-bold text-slate-900">{activeProjects}</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-purple-100 text-purple-600 rounded-xl">
-                            <CheckCircle size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.completed')}</p>
-                            <h3 className="text-2xl font-bold text-slate-900">{completedProjects}</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-orange-100 text-orange-600 rounded-xl">
-                            <DollarSign size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.avgScore')}</p>
-                            <h3 className="text-2xl font-bold text-slate-900">{avgScore}</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex items-center gap-4">
-                        <div className={`p-4 rounded-xl ${parseFloat(portfolioHealth) > 70 ? 'bg-green-100 text-green-600' : parseFloat(portfolioHealth) > 50 ? 'bg-yellow-100 text-yellow-600' : 'bg-red-100 text-red-600'}`}>
-                            <AlertCircle size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm text-slate-500 font-medium">{t('dashboard.portfolioHealth')}</p>
-                            <h3 className="text-2xl font-bold text-slate-900">{portfolioHealth}%</h3>
-                        </div>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                <StatCard
+                    title={t('dashboard.totalProjects')}
+                    value={totalProjects}
+                    icon={TrendingUp}
+                    iconColor="blue"
+                />
+                <StatCard
+                    title={t('dashboard.active')}
+                    value={activeProjects}
+                    icon={Clock}
+                    iconColor="green"
+                />
+                <StatCard
+                    title={t('dashboard.completed')}
+                    value={completedProjects}
+                    icon={CheckCircle}
+                    iconColor="purple"
+                />
+                <StatCard
+                    title={t('dashboard.avgScore')}
+                    value={avgScore}
+                    icon={DollarSign}
+                    iconColor="orange"
+                />
+                <StatCard
+                    title={t('dashboard.portfolioHealth')}
+                    value={`${portfolioHealth}%`}
+                    icon={AlertCircle}
+                    iconColor={parseFloat(portfolioHealth) > 70 ? 'green' : parseFloat(portfolioHealth) > 50 ? 'orange' : 'red'}
+                />
             </div>
 
             {/* Alert Cards */}
@@ -214,10 +182,10 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
                 {/* Score Distribution */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.projectPriorityScores')}</h3>
+                <Card className="lg:col-span-2">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">{t('dashboard.projectPriorityScores')}</h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={scoreDistribution}>
@@ -236,11 +204,11 @@ const Dashboard: React.FC = () => {
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                </div>
+                </Card>
 
                 {/* Status Distribution Pie */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.projectStatus')}</h3>
+                <Card>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">{t('dashboard.projectStatus')}</h3>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -262,48 +230,48 @@ const Dashboard: React.FC = () => {
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                </div>
+                </Card>
             </div>
 
             {/* Resource Allocation Table */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.resourceAllocationAnalysis')}</h3>
+            <Card>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">{t('dashboard.resourceAllocationAnalysis')}</h3>
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-slate-50 border-b border-slate-200">
+                        <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-600">
                             <tr>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.resourceType')}</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.totalCapacity')}</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.allocated')}</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.available')}</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.utilization')}</th>
-                                <th className="p-4 text-left font-semibold text-slate-600">{t('dashboard.status')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.resourceType')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.totalCapacity')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.allocated')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.available')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.utilization')}</th>
+                                <th className="p-4 text-left font-semibold text-slate-600 dark:text-slate-300">{t('dashboard.status')}</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {resourceAllocation.map((resource) => {
                                 const util = parseFloat(resource.utilization);
                                 return (
-                                    <tr key={resource.name} className="hover:bg-slate-50">
-                                        <td className="p-4 font-medium text-slate-900">{resource.name}</td>
-                                        <td className="p-4 text-slate-600">{resource.total}</td>
-                                        <td className="p-4 text-slate-600">{resource.allocated}</td>
-                                        <td className="p-4 text-slate-600">{resource.available}</td>
+                                    <tr key={resource.name} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                        <td className="p-4 font-medium text-slate-900 dark:text-slate-100">{resource.name}</td>
+                                        <td className="p-4 text-slate-600 dark:text-slate-300">{resource.total}</td>
+                                        <td className="p-4 text-slate-600 dark:text-slate-300">{resource.allocated}</td>
+                                        <td className="p-4 text-slate-600 dark:text-slate-300">{resource.available}</td>
                                         <td className="p-4">
                                             <div className="flex items-center gap-2">
-                                                <div className="flex-1 bg-slate-200 rounded-full h-2 max-w-[100px]">
+                                                <div className="flex-1 bg-slate-200 dark:bg-slate-600 rounded-full h-2 max-w-[100px]">
                                                     <div
                                                         className={`h-2 rounded-full ${util > 90 ? 'bg-red-500' : util > 70 ? 'bg-yellow-500' : 'bg-green-500'}`}
                                                         style={{ width: `${Math.min(util, 100)}%` }}
                                                     />
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-600">{resource.utilization}%</span>
+                                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{resource.utilization}%</span>
                                             </div>
                                         </td>
                                         <td className="p-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${util > 90 ? 'bg-red-100 text-red-700' : util > 70 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                            <Badge variant={util > 90 ? 'danger' : util > 70 ? 'warning' : 'success'} rounded="full">
                                                 {util > 90 ? t('dashboard.overloaded') : util > 70 ? t('dashboard.high') : t('dashboard.healthy')}
-                                            </span>
+                                            </Badge>
                                         </td>
                                     </tr>
                                 );
@@ -311,39 +279,40 @@ const Dashboard: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </Card>
 
             {/* Top Projects List */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">{t('dashboard.topPriorityProjects')}</h3>
+            <Card>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">{t('dashboard.topPriorityProjects')}</h3>
                 <div className="space-y-4">
                     {topProjects.map((p, i) => (
-                        <div key={p.id} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-colors border border-slate-100">
+                        <div key={p.id} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors border border-slate-100 dark:border-slate-700">
                             <div className="flex items-center gap-4">
                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${i === 0 ? 'bg-yellow-100 text-yellow-700 ring-2 ring-yellow-300' : i === 1 ? 'bg-slate-200 text-slate-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'}`}>
                                     #{i + 1}
                                 </div>
                                 <div>
-                                    <p className="font-bold text-slate-900">{p.name}</p>
-                                    <p className="text-sm text-slate-500">{p.description?.substring(0, 60)}...</p>
+                                    <p className="font-bold text-slate-900 dark:text-slate-100">{p.name}</p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">{p.description?.substring(0, 60)}...</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="text-right">
-                                    <p className="text-sm text-slate-500">{t('projects.score')}</p>
-                                    <p className="text-xl font-bold text-blue-600">{(p.score || 0).toFixed(2)}</p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">{t('projects.score')}</p>
+                                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{(p.score || 0).toFixed(2)}</p>
                                 </div>
-                                <span className={`px-3 py-1 rounded-lg text-xs font-bold ${p.status === 'active' ? 'bg-green-100 text-green-700' :
-                                    p.status === 'planning' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
-                                    }`}>
+                                <Badge
+                                    variant={p.status === 'active' ? 'success' : p.status === 'planning' ? 'primary' : 'neutral'}
+                                    rounded="default"
+                                >
                                     {p.status.toUpperCase()}
-                                </span>
+                                </Badge>
                             </div>
                         </div>
                     ))}
                 </div>
-            </div>
-        </div>
+            </Card>
+        </PageContainer>
     );
 };
 
