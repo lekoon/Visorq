@@ -7,15 +7,15 @@ const Home: React.FC = () => {
 
     const cards = [
         {
-            title: '项目管理',
+            title: '项目组合',
             description: '全方位的项目全生命周期管理，包括评分、进度追踪、模板管理与批量操作。',
             icon: FolderKanban,
             path: '/projects',
             color: 'from-blue-500 to-cyan-500',
-            features: ['项目列表', '项目详情', '模板管理', '批量导入']
+            features: ['项目列表', '项目模板', '项目组合', '依赖分析']
         },
         {
-            title: '资源管理',
+            title: '资源团队',
             description: '智能化的资源池管理，实时监控资源负载，自动检测冲突并提供优化建议。',
             icon: Users,
             path: '/resources',
@@ -23,20 +23,20 @@ const Home: React.FC = () => {
             features: ['资源池', '容量规划', '冲突检测', '技能匹配']
         },
         {
-            title: '成本分析',
-            description: '精确的成本控制与预算分析，实时追踪项目投入产出比，辅助财务决策。',
+            title: '风险质量',
+            description: '精确的风险控制与质量管理，实时追踪交付效率，辅助项目决策。',
             icon: PieChart,
-            path: '/cost',
+            path: '/delivery-efficiency',
             color: 'from-amber-500 to-orange-500',
-            features: ['成本概览', '预算分析', 'ROI预测', '支出追踪']
+            features: ['交付效率', 'AI 决策', '风险预警', '质量追踪']
         },
         {
-            title: '决策支持',
-            description: '基于AI的智能决策辅助系统，提供高管仪表盘、高级报表与风险预测。',
+            title: '分析报告',
+            description: '基于数据的智能分析系统，提供成本分析、高级报表与数据洞察。',
             icon: Brain,
-            path: '/decision',
+            path: '/analysis',
             color: 'from-emerald-500 to-teal-500',
-            features: ['高管仪表盘', 'AI 洞察', '高级报表', '风险预警']
+            features: ['成本分析', 'AI 洞察', '高级报表', '挣值管理']
         }
     ];
 

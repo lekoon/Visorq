@@ -96,11 +96,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const path = location.pathname;
 
         // 项目组合管理
-        if (path.startsWith('/projects')) {
+        if (path.startsWith('/projects') || path.startsWith('/portfolio') || path.startsWith('/dependencies')) {
             return [
                 { label: '项目列表', path: '/projects', icon: FolderKanban, description: '所有项目' },
                 { label: '项目模板', path: '/projects/templates', icon: Copy, description: '快速创建' },
                 { label: '批量导入', path: '/projects/import', icon: Upload, description: '数据导入' },
+                { label: '项目组合', path: '/portfolio', icon: Briefcase, description: 'PMO 总览' },
+                { label: '依赖分析', path: '/dependencies', icon: Search, description: '跨项目依赖' },
             ];
         }
 
@@ -108,12 +110,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         if (path.startsWith('/resources')) {
             return [
                 { label: '资源总览', path: '/resources', icon: Users, description: '资源池管理' },
-                { label: '成本分析', path: '/analysis', icon: PieChart, description: '成本控制' },
             ];
         }
 
         // 风险与质量管理
-        if (path.startsWith('/delivery-efficiency')) {
+        if (path.startsWith('/delivery-efficiency') || path.startsWith('/ai-decision')) {
             return [
                 { label: '交付效率', path: '/delivery-efficiency', icon: TrendingUp, description: '效率指标' },
                 { label: 'AI 决策', path: '/ai-decision', icon: Brain, description: '智能建议' },
@@ -121,13 +122,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
 
         // 分析与报告
-        if (path.startsWith('/analysis') || path.startsWith('/ai-decision') || path.startsWith('/reports') || path.startsWith('/portfolio') || path.startsWith('/evm') || path.startsWith('/dependencies')) {
+        if (path.startsWith('/analysis') || path.startsWith('/reports') || path.startsWith('/evm')) {
             return [
-                { label: '项目组合', path: '/portfolio', icon: Briefcase, description: 'PMO 总览' },
-                { label: '挣值管理', path: '/evm', icon: TrendingUp, description: 'EVM 分析' },
-                { label: '依赖分析', path: '/dependencies', icon: Search, description: '跨项目依赖' },
                 { label: '成本分析', path: '/analysis', icon: PieChart, description: '财务视图' },
-                { label: 'AI 决策', path: '/ai-decision', icon: Brain, description: '智能分析' },
+                { label: '挣值管理', path: '/evm', icon: TrendingUp, description: 'EVM 分析' },
                 { label: '高级报表', path: '/reports', icon: FileText, description: '定制报告' },
             ];
         }
