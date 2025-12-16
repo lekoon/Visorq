@@ -29,8 +29,8 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # 使用 npm install 而不是 npm ci，以避免 lockfile 不一致导致的问题
-        run: npm install
+        # 使用 npm ci --legacy-peer-deps 以避免依赖冲突
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         # 显式设置 NODE_ENV
