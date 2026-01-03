@@ -1,1 +1,0 @@
-import{j as t}from"./index-Cm5v5aLu.js";const l=({children:s,className:r="",padding:a="md",hover:o=!1})=>{const d={none:"",sm:"p-4",md:"p-6",lg:"p-8"},e=o?"hover:shadow-md transition-shadow duration-200":"";return t.jsx("div",{className:`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm ${d[a]} ${e} ${r}`,children:s})};export{l as C};
