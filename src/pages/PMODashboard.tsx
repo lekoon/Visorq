@@ -11,7 +11,7 @@ import {
     FileText,
 } from 'lucide-react';
 import { Card, Badge, Button } from '../components/ui';
-import ResourceConflictVisualizer from '../components/ResourceConflictVisualizer';
+import ProjectHealthMonitor from '../components/ProjectHealthMonitor';
 
 const PMODashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -203,12 +203,12 @@ const PMODashboard: React.FC = () => {
                             </div>
                         </Card>
 
-                        {/* 资源冲突检测 */}
+                        {/* 项目健康度监控 */}
                         <Card className="p-6">
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
-                                资源冲突检测
+                                项目健康度监控
                             </h3>
-                            <ResourceConflictVisualizer projects={projects} resources={[]} />
+                            <ProjectHealthMonitor projects={projects} />
                         </Card>
                     </div>
 
