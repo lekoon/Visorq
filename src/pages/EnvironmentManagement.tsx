@@ -1,18 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, Plus, Server, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { usePMOStore } from '../store/usePMOStore';
-import type { EnvironmentResource, EnvironmentBooking, EnvironmentType } from '../types';
+import type { EnvironmentResource, EnvironmentType } from '../types';
 import { Card, Button, Badge, PageContainer, PageHeader } from '../components/ui';
-import { useTranslation } from 'react-i18next';
+import AddEnvironmentModal from '../components/AddEnvironmentModal';
+import BookEnvironmentModal from '../components/BookEnvironmentModal';
 
 const EnvironmentManagement: React.FC = () => {
-    const { t } = useTranslation();
     const {
         environmentResources,
         addEnvironmentResource,
         bookEnvironment,
-        cancelEnvironmentBooking,
-        getAvailableEnvironments,
     } = usePMOStore();
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -203,7 +201,24 @@ const EnvironmentManagement: React.FC = () => {
                 </Card>
             )}
 
-            {/* Modals would go here - AddEnvironmentModal, BookingModal, etc. */}
+            {/* Add Environment Modal */}
+            <AddEnvironmentModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+                onAdd={(environment) => {
+                    addEnvironmentResource(environment);
+                }}
+            />
+
+            {/* Book Environment Modal */}
+            <BookEnvironmentModal
+                isOpen={showBookingModal}
+                onClose={() => setShowBookingModal(false)}
+                environment={selectedEnvironment}
+                onBook={(booking) => {
+                    bookEnvironment(booking);
+                }}
+            />
         </PageContainer>
     );
 };
