@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate, KeyTaskDefinition } from '../types';
+import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate, KeyTaskDefinition, BayResource, MachineResource } from '../types';
 import { calculateProjectScore, rankProjects } from '../utils/algorithm';
 import { createBaseline as createBaselineSnapshot } from '../utils/baselineManagement';
 
@@ -13,6 +13,8 @@ interface StoreState {
     notifications: Notification[];
     alerts: Alert[];
     keyTaskDefinitions: KeyTaskDefinition[];
+    physicalBays: BayResource[];
+    physicalMachines: MachineResource[];
 
     // Actions
     login: (username: string, role: 'admin' | 'manager' | 'user' | 'readonly') => void;
@@ -56,6 +58,11 @@ interface StoreState {
     addKeyTaskDefinition: (name: string, color: string) => void;
     updateKeyTaskDefinition: (id: string, updates: Partial<KeyTaskDefinition>) => void;
     deleteKeyTaskDefinition: (id: string) => void;
+
+    // Physical Resources
+    setPhysicalBays: (bays: BayResource[]) => void;
+    setPhysicalMachines: (machines: MachineResource[]) => void;
+    updatePhysicalResource: (id: string, updates: any) => void;
 }
 
 // Default data
@@ -192,6 +199,8 @@ export const useStore = create<StoreState>()(
                 notifications: [],
                 alerts: [],
                 keyTaskDefinitions: DEFAULT_KEY_TASKS,
+                physicalBays: [],
+                physicalMachines: [],
 
                 login: (username, role) => set({
                     user: {
@@ -391,22 +400,41 @@ export const useStore = create<StoreState>()(
                     )
                 }), false, 'baseline/setActive'),
 
-                addKeyTaskDefinition: (name, color) => set((state) => ({
+                addKeyTaskDefinition: (name: string, color: string) => set((state) => ({
                     keyTaskDefinitions: [
                         ...state.keyTaskDefinitions,
                         { id: `kt-${Date.now()}`, name, color }
                     ]
                 }), false, 'keyTasks/add'),
 
-                updateKeyTaskDefinition: (id, updates) => set((state) => ({
+                updateKeyTaskDefinition: (id: string, updates: Partial<KeyTaskDefinition>) => set((state) => ({
                     keyTaskDefinitions: state.keyTaskDefinitions.map(kt =>
                         kt.id === id ? { ...kt, ...updates } : kt
                     )
                 }), false, 'keyTasks/update'),
 
-                deleteKeyTaskDefinition: (id) => set((state) => ({
+                deleteKeyTaskDefinition: (id: string) => set((state) => ({
                     keyTaskDefinitions: state.keyTaskDefinitions.filter(kt => kt.id !== id)
                 }), false, 'keyTasks/delete'),
+
+                setPhysicalBays: (bays: BayResource[]) => set({ physicalBays: bays }, false, 'physical/setBays'),
+                setPhysicalMachines: (machines: MachineResource[]) => set({ physicalMachines: machines }, false, 'physical/setMachines'),
+                updatePhysicalResource: (id: string, updates: any) => {
+                    const isBay = id.startsWith('bay');
+                    if (isBay) {
+                        set((state) => ({
+                            physicalBays: state.physicalBays.map((b) =>
+                                b.id === id ? { ...b, ...updates } : b
+                            ),
+                        }), false, 'physical/updateBay');
+                    } else {
+                        set((state) => ({
+                            physicalMachines: state.physicalMachines.map((m) =>
+                                m.id === id ? { ...m, ...updates } : m
+                            ),
+                        }), false, 'physical/updateMachine');
+                    }
+                },
             }),
             {
                 name: 'visorq-storage',
@@ -419,7 +447,9 @@ export const useStore = create<StoreState>()(
                     resourcePool: state.resourcePool,
                     projectTemplates: state.projectTemplates,
                     alerts: state.alerts,
-                    keyTaskDefinitions: state.keyTaskDefinitions
+                    keyTaskDefinitions: state.keyTaskDefinitions,
+                    physicalBays: state.physicalBays,
+                    physicalMachines: state.physicalMachines
                 }),
             }
         ),

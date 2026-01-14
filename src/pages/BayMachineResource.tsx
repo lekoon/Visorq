@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
     Box,
     Cpu,
@@ -23,7 +24,12 @@ import {
     ChevronLeft,
     ChevronRight,
     RefreshCw,
-    X
+    X,
+    AlarmClock,
+    Plus,
+    Trash2,
+    Download,
+    Upload
 } from 'lucide-react';
 import { Card, Badge, Button } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,7 +46,7 @@ import {
     subMonths
 } from 'date-fns';
 import { useStore } from '../store/useStore';
-import type { BayResource, MachineResource, BaySize, ResourceBooking, ReplacementRecord } from '../types';
+import type { BayResource, MachineResource, BaySize, ResourceBooking, ReplacementRecord, ResourceStatus } from '../types';
 
 // --- Smart Utils ---
 const getHealthColor = (health: number) => {
@@ -63,53 +69,91 @@ const calculateRiskScore = (resource: BayResource | MachineResource) => {
 
 // --- Mock Data ---
 const MACHINE_MODELS = ['uCT 760', 'uCT 510', 'uCT 860', 'uMR 770', 'uMR 580', 'uX-ray 500'];
+const PLATFORMS = ['Falcon', 'Eagle', 'Titan', 'Zeus'];
 
 const MOCK_BAYS: BayResource[] = Array.from({ length: 16 }).map((_, i) => ({
     id: `bay-${i + 1}`,
     name: `Bay ${String(i + 1).padStart(2, '0')}`,
     size: (['S', 'M', 'L'] as BaySize[])[i % 3],
-    status: 'available', // Initial state: always available
+    status: 'available',
     currentProjectId: undefined,
     currentProjectName: undefined,
-    health: 95 + Math.random() * 5, // New equipment usually has high health
+    currentMachineId: undefined,
+    currentMachineName: undefined,
+    health: 95 + Math.random() * 5,
     lastMaintenance: format(addMonths(new Date(), -1), 'yyyy-MM-dd'),
     nextMaintenance: format(addDays(new Date(), 30 + i), 'yyyy-MM-dd'),
-    bookings: [], // No initial bookings
+    bookings: [],
     conflicts: [],
     replacementHistory: [],
+    maintenancePlans: [],
     usageHistory: [],
-    version: 1 // Concurrency control
+    version: 1
 } as any));
 
 const MOCK_MACHINES: MachineResource[] = Array.from({ length: 30 }).map((_, i) => ({
     id: `mach-${i + 1}`,
     name: `${MACHINE_MODELS[i % MACHINE_MODELS.length]} #${String(i + 1).padStart(2, '0')}`,
     model: MACHINE_MODELS[i % MACHINE_MODELS.length],
+    platform: PLATFORMS[i % PLATFORMS.length],
     health: 98 + Math.random() * 2,
     status: 'available',
     currentProjectId: undefined,
     currentProjectName: undefined,
+    currentBayId: undefined,
+    currentBayName: undefined,
     lastMaintenance: format(addMonths(new Date(), -1), 'yyyy-MM-dd'),
     nextMaintenance: format(addDays(new Date(), 45 + i), 'yyyy-MM-dd'),
     bookings: [],
     conflicts: [],
     replacementHistory: [],
+    maintenancePlans: [], // Start with no plans as per requirement
     usageHistory: [],
-    version: 1 // Concurrency control
+    version: 1
 } as any));
 
 const BayMachineResource: React.FC = () => {
-    const { projects, user } = useStore();
+    const {
+        projects,
+        user,
+        physicalBays,
+        physicalMachines,
+        setPhysicalBays,
+        setPhysicalMachines,
+        updatePhysicalResource
+    } = useStore();
     const [viewTab, setViewTab] = useState<'monitor' | 'risk' | 'maintenance' | 'calendar'>('monitor');
     const [viewMode, setViewMode] = useState<'visual' | 'list'>('visual');
     const [resourceType, setResourceType] = useState<'bay' | 'machine'>('bay');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedResource, setSelectedResource] = useState<BayResource | MachineResource | null>(null);
-    const [bays, setBays] = useState<BayResource[]>(MOCK_BAYS);
-    const [machines, setMachines] = useState<MachineResource[]>(MOCK_MACHINES);
+
+    // Use local state but sync with global store for initial data if needed
+    const bays = physicalBays;
+    const machines = physicalMachines;
+
+    React.useEffect(() => {
+        if (physicalBays.length === 0 && physicalMachines.length === 0) {
+            setPhysicalBays(MOCK_BAYS);
+            setPhysicalMachines(MOCK_MACHINES);
+        }
+    }, []);
+
+    const setBays = (updater: any) => {
+        const next = typeof updater === 'function' ? updater(physicalBays) : updater;
+        setPhysicalBays(next);
+    };
+
+    const setMachines = (updater: any) => {
+        const next = typeof updater === 'function' ? updater(physicalMachines) : updater;
+        setPhysicalMachines(next);
+    };
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
     const [calendarDetailTab, setCalendarDetailTab] = useState<'bay' | 'machine'>('bay');
+    const [sizeFilter, setSizeFilter] = useState<'all' | BaySize>('all');
+    const [platformFilter, setPlatformFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | ResourceStatus>('all');
 
     // Feishu Integration State
     const [showFeishuConnect, setShowFeishuConnect] = useState(false);
@@ -147,15 +191,117 @@ const BayMachineResource: React.FC = () => {
         startDate: format(new Date(), 'yyyy-MM-dd'),
         endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd')
     });
+    const [bookingExtra, setBookingExtra] = useState({
+        reservedByName: user?.name || '',
+        dept: '',
+        purpose: '',
+        statusChecked: false,
+        bindToBayId: ''
+    });
+
+    // Tab Refreshing State
+    const [isTabRefreshing, setIsTabRefreshing] = useState(false);
+    const [lastSyncTime, setLastSyncTime] = useState<string>(format(new Date(), 'HH:mm:ss'));
+
+    const handleTabChange = async (tab: typeof viewTab) => {
+        if (tab === viewTab) return;
+
+        setIsTabRefreshing(true);
+        setViewTab(tab);
+
+        // Simulate background data pull / real-time re-calculation
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        // Subtle randomization to simulate "latest" content
+        if (tab === 'risk' || tab === 'maintenance') {
+            setBays((prev: BayResource[]) => [...prev]); // Trigger re-memoization of risks/maint
+            setMachines((prev: MachineResource[]) => [...prev]);
+        }
+
+        setLastSyncTime(format(new Date(), 'HH:mm:ss'));
+        setIsTabRefreshing(false);
+    };
     const [maintenanceLogData, setMaintenanceLogData] = useState({
         partName: '',
         reason: '',
         performedBy: user?.name || ''
     });
+    const [maintenanceReservation, setMaintenanceReservation] = useState({
+        type: 'routine' as any,
+        description: '',
+        date: format(addDays(new Date(), 1), 'yyyy-MM-dd')
+    });
+    const [maintScheduleOffset, setMaintScheduleOffset] = useState(0); // For swiping history
     const [showMaintSchedule, setShowMaintSchedule] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [editingNameValue, setEditingNameValue] = useState('');
     const [conflictError, setConflictError] = useState<string | null>(null);
+
+    const [showAddResourceModal, setShowAddResourceModal] = useState(false);
+    const [newResourceData, setNewResourceData] = useState({
+        type: 'bay' as 'bay' | 'machine',
+        name: '',
+        size: 'S' as BaySize,
+        model: '',
+        platform: ''
+    });
+
+    const handleAddResource = () => {
+        if (!isPMO) return;
+
+        const id = newResourceData.type === 'bay' ? `bay-${Date.now()}` : `mach-${Date.now()}`;
+        const commonData = {
+            id,
+            name: newResourceData.name || (newResourceData.type === 'bay' ? `New Bay ${bays.length + 1}` : `New Machine ${machines.length + 1}`),
+            status: 'available' as ResourceStatus,
+            health: 100,
+            lastMaintenance: format(new Date(), 'yyyy-MM-dd'),
+            nextMaintenance: format(addDays(new Date(), 90), 'yyyy-MM-dd'),
+            bookings: [],
+            conflicts: [],
+            replacementHistory: [],
+            maintenancePlans: [],
+            usageHistory: [],
+            version: 1
+        };
+
+        if (newResourceData.type === 'bay') {
+            const newBay: BayResource = {
+                ...commonData,
+                size: newResourceData.size,
+            } as BayResource;
+            setBays((prev: BayResource[]) => [...prev, newBay]);
+        } else {
+            const newMachine: MachineResource = {
+                ...commonData,
+                model: newResourceData.model || 'Generic Model',
+                platform: newResourceData.platform || 'General',
+            } as MachineResource;
+            setMachines((prev: MachineResource[]) => [...prev, newMachine]);
+        }
+        setShowAddResourceModal(false);
+        setNewResourceData({ type: 'bay', name: '', size: 'S', model: '', platform: '' });
+    };
+
+    const handleDeleteResource = (id: string) => {
+        if (!isPMO) return;
+        if (!window.confirm('确定要删除此资源吗？该操作不可撤销。')) return;
+
+        if (id.startsWith('bay')) {
+            setBays((prev: BayResource[]) => prev.filter(b => b.id !== id));
+        } else {
+            setMachines((prev: MachineResource[]) => prev.filter(m => m.id !== id));
+        }
+        setSelectedResource(null);
+    };
+
+    // Editing classification state
+    const [isEditingClassification, setIsEditingClassification] = useState(false);
+    const [editClassificationValue, setEditClassificationValue] = useState({
+        size: '' as BaySize,
+        platform: '',
+        model: ''
+    });
 
     const updateResourcePool = (id: string, updates: any, originalVersion?: number) => {
         const pool = id.startsWith('bay') ? bays : machines;
@@ -167,17 +313,127 @@ const BayMachineResource: React.FC = () => {
             return false;
         }
 
-        const setter = id.startsWith('bay') ? setBays : setMachines;
         const nextVersion = (currentItem as any)?.version ? (currentItem as any).version + 1 : 1;
+        const fullUpdates = { ...updates, version: nextVersion };
 
-        setter((prev: any[]) => prev.map(item =>
-            item.id === id ? { ...item, ...updates, version: nextVersion } : item
-        ));
+        updatePhysicalResource(id, fullUpdates);
 
         if (selectedResource?.id === id) {
-            setSelectedResource((prev: any) => ({ ...prev, ...updates, version: nextVersion }));
+            setSelectedResource((prev: any) => ({ ...prev, ...fullUpdates }));
         }
         return true;
+    };
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleExportExcel = () => {
+        const data = [
+            ...bays.map(b => ({
+                '类型': 'Bay',
+                'ID': b.id,
+                '名称': b.name,
+                '规格/型号': b.size,
+                '平台': '-',
+                '状态': b.status === 'available' ? '可用' : b.status === 'occupied' ? '已占用' : '维护中',
+                '关联项目': b.currentProjectName || '-',
+                '绑定资源': b.currentMachineName || '-',
+                '健康度': `${b.health}%`,
+                '下次维保': b.nextMaintenance
+            })),
+            ...machines.map(m => ({
+                '类型': '机器',
+                'ID': m.id,
+                '名称': m.name,
+                '规格/型号': m.model,
+                '平台': m.platform || '-',
+                '状态': m.status === 'available' ? '可用' : m.status === 'occupied' ? '已占用' : '维护中',
+                '关联项目': m.currentProjectName || '-',
+                '绑定资源': m.currentBayName || '-',
+                '健康度': `${m.health}%`,
+                '下次维保': m.nextMaintenance
+            }))
+        ];
+
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "资源监控数据");
+
+        // Auto-size columns
+        worksheet["!cols"] = [{ wch: 10 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 15 }];
+
+        XLSX.writeFile(workbook, `物理资源监控导出_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+    };
+
+    const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+            const newBays: BayResource[] = [];
+            const newMachines: MachineResource[] = [];
+
+            data.forEach((row, index) => {
+                const type = row['类型'];
+                const statusMap: Record<string, ResourceStatus> = {
+                    '可用': 'available',
+                    '已占用': 'occupied',
+                    '维护中': 'maintenance'
+                };
+
+                const common = {
+                    id: row['ID'] || (type === 'Bay' ? `bay-imp-${index}` : `mach-imp-${index}`),
+                    name: row['名称'] || '未命名资源',
+                    status: statusMap[row['状态']] || 'available',
+                    health: parseInt(row['健康度']) || 100,
+                    lastMaintenance: format(new Date(), 'yyyy-MM-dd'),
+                    nextMaintenance: row['下次维保'] || format(addDays(new Date(), 90), 'yyyy-MM-dd'),
+                    bookings: [],
+                    conflicts: [],
+                    replacementHistory: [],
+                    maintenancePlans: [],
+                    usageHistory: [],
+                    version: 1
+                };
+
+                if (type === 'Bay') {
+                    newBays.push({
+                        ...common,
+                        size: (row['规格/型号'] || 'S') as BaySize,
+                        currentProjectName: row['关联项目'] !== '-' ? row['关联项目'] : undefined,
+                        currentMachineName: row['绑定资源'] !== '-' ? row['绑定资源'] : undefined,
+                    } as BayResource);
+                } else {
+                    newMachines.push({
+                        ...common,
+                        model: row['规格/型号'] || 'Unknown',
+                        platform: row['平台'] !== '-' ? row['平台'] : 'General',
+                        currentProjectName: row['关联项目'] !== '-' ? row['关联项目'] : undefined,
+                        currentBayName: row['绑定资源'] !== '-' ? row['绑定资源'] : undefined,
+                    } as MachineResource);
+                }
+            });
+
+            if (newBays.length > 0) setBays(newBays);
+            if (newMachines.length > 0) setMachines(newMachines);
+
+            // Re-sync selected resource if it was updated
+            if (selectedResource) {
+                const updated = [...newBays, ...newMachines].find(r => r.id === selectedResource.id);
+                if (updated) setSelectedResource(updated);
+            }
+
+            setLastSyncTime(format(new Date(), 'HH:mm:ss'));
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            alert(`成功导入 ${data.length} 条资源信息`);
+        };
+        reader.readAsBinaryString(file);
     };
 
     const handleMaintenance = async (id: string) => {
@@ -212,6 +468,10 @@ const BayMachineResource: React.FC = () => {
 
     const handleBooking = (resource: BayResource | MachineResource) => {
         if (!canBook) return;
+        if (resource.status !== 'available') {
+            setConflictError("该资源当前不可预定（已被占用或在维护中）。");
+            return;
+        }
         const selectedProject = projects.find(p => p.id === bookingData.projectId);
         if (!selectedProject) return;
 
@@ -222,30 +482,123 @@ const BayMachineResource: React.FC = () => {
             startDate: bookingData.startDate,
             endDate: bookingData.endDate,
             reservedBy: user?.id || 'currentUser',
+            reservedByName: bookingExtra.reservedByName,
+            reservedByDept: bookingExtra.dept,
+            purpose: bookingExtra.purpose,
             usageType: 'test',
-            status: 'active'
+            status: 'active',
+            initialStatusConfirmed: bookingExtra.statusChecked
         };
 
-        const success = updateResourcePool(resource.id, {
+        let updates: any = {
             status: 'occupied',
             currentProjectId: selectedProject.id,
             currentProjectName: selectedProject.name,
             bookings: [newBooking, ...resource.bookings]
-        }, (resource as any).version);
+        };
+
+        // Handle Binding during machine booking
+        if (!resource.id.startsWith('bay') && bookingExtra.bindToBayId) {
+            const selectedBay = bays.find(b => b.id === bookingExtra.bindToBayId);
+            if (selectedBay && selectedBay.status === 'available') {
+                updates.currentBayId = selectedBay.id;
+                updates.currentBayName = selectedBay.name;
+
+                // Update Sibling Bay
+                updateResourcePool(selectedBay.id, {
+                    status: 'occupied',
+                    currentProjectId: selectedProject.id,
+                    currentProjectName: selectedProject.name,
+                    currentMachineId: resource.id,
+                    currentMachineName: resource.name,
+                    bookings: [newBooking, ...selectedBay.bookings]
+                });
+            }
+        }
+
+        const success = updateResourcePool(resource.id, updates, (resource as any).version);
 
         if (success) {
             setShowBookingForm(false);
+            setBookingExtra({ dept: '', purpose: '', reservedByName: user?.name || '', statusChecked: false, bindToBayId: '' });
         }
     };
 
-    const handleRelease = (id: string) => {
+    const handleRelease = (id: string, normalStatus: boolean) => {
         if (!canManageResource(selectedResource!)) return;
+
+        const resource = selectedResource!;
+        const updatedHistory = (resource.bookings || []).map(b =>
+            b.status === 'active' ? { ...b, status: 'completed' as const, returnStatusConfirmed: normalStatus } : b
+        );
+
+        // Handle Unbinding
+        if (!resource.id.startsWith('bay') && (resource as MachineResource).currentBayId) {
+            const bayId = (resource as MachineResource).currentBayId!;
+            updateResourcePool(bayId, {
+                status: 'available',
+                currentProjectId: undefined,
+                currentProjectName: undefined,
+                currentMachineId: undefined,
+                currentMachineName: undefined
+                // Note: We don't necessarily close the bay's booking here if it was separate, 
+                // but if they were bound during booking, we release both.
+            });
+        } else if (resource.id.startsWith('bay') && (resource as BayResource).currentMachineId) {
+            const machId = (resource as BayResource).currentMachineId!;
+            updateResourcePool(machId, {
+                status: 'available',
+                currentProjectId: undefined,
+                currentProjectName: undefined,
+                currentBayId: undefined,
+                currentBayName: undefined
+            });
+        }
 
         updateResourcePool(id, {
             status: 'available',
             currentProjectId: undefined,
-            currentProjectName: undefined
-        }, (selectedResource as any)?.version);
+            currentProjectName: undefined,
+            bookings: updatedHistory,
+            currentMachineId: undefined, // ensure both cleared
+            currentMachineName: undefined,
+            currentBayId: undefined,
+            currentBayName: undefined
+        }, (resource as any)?.version);
+    };
+
+    const handleMaintenanceReservation = () => {
+        if (!selectedResource) return;
+
+        const newPlan: any = {
+            id: `plan-${Date.now()}`,
+            resourceId: selectedResource.id,
+            resourceName: selectedResource.name,
+            applicant: user?.name || 'Unknown',
+            applicantDept: '研发部',
+            plannedDate: maintenanceReservation.date,
+            type: maintenanceReservation.type,
+            description: maintenanceReservation.description,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        };
+
+        updateResourcePool(selectedResource.id, {
+            maintenancePlans: [newPlan, ...(selectedResource.maintenancePlans || [])]
+        }, (selectedResource as any).version);
+
+        setMaintenanceReservation({ type: 'routine', description: '', date: format(addDays(new Date(), 1), 'yyyy-MM-dd') });
+    };
+
+    const handleApproveMaintenance = (resourceId: string, planId: string, status: 'accepted' | 'rejected', remarks: string) => {
+        const resource = resourceId.startsWith('bay') ? bays.find(b => b.id === resourceId) : machines.find(m => m.id === resourceId);
+        if (!resource) return;
+
+        const updatedPlans = (resource.maintenancePlans || []).map(p =>
+            p.id === planId ? { ...p, status, approvalRemarks: remarks, approver: user?.name } : p
+        );
+
+        updateResourcePool(resourceId, { maintenancePlans: updatedPlans }, (resource as any).version);
     };
 
     const handleAddMaintenanceLog = () => {
@@ -269,11 +622,21 @@ const BayMachineResource: React.FC = () => {
 
     const filteredItems = useMemo(() => {
         const pool = resourceType === 'bay' ? bays : machines;
-        return pool.filter(item =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (item.currentProjectName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-        );
-    }, [resourceType, searchTerm, bays, machines]);
+        return pool.filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.currentProjectName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+
+            const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+
+            if (resourceType === 'bay') {
+                const matchesSize = sizeFilter === 'all' || (item as BayResource).size === sizeFilter;
+                return matchesSearch && matchesSize && matchesStatus;
+            } else {
+                const matchesPlatform = platformFilter === 'all' || (item as MachineResource).platform === platformFilter;
+                return matchesSearch && matchesPlatform && matchesStatus;
+            }
+        });
+    }, [resourceType, searchTerm, bays, machines, sizeFilter, platformFilter, statusFilter]);
 
     const risks = useMemo(() => {
         const allResources = [...bays, ...machines];
@@ -362,7 +725,13 @@ const BayMachineResource: React.FC = () => {
                         <Activity className="text-blue-600" size={32} />
                         物理资源智能管控中心
                     </h1>
-                    <p className="text-slate-500 mt-1">AI 驱动的 Bay 位分配、机器健康监控与冲突预警系统</p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <p className="text-slate-500">AI 驱动的 Bay 位分配、机器健康监控与冲突预警系统</p>
+                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1.5 ml-2">
+                            <RefreshCw size={10} className={isTabRefreshing ? 'animate-spin' : ''} />
+                            实时同步中: {lastSyncTime}
+                        </span>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3 w-full lg:w-auto">
                     <div className="flex items-center gap-2 mr-2">
@@ -387,46 +756,74 @@ const BayMachineResource: React.FC = () => {
                             {isFeishuSyncing ? '正在拉取多维表格...' : isPMO ? '同步飞书多维表格' : '仅限 PMO 同步数据'}
                         </Button>
                     </div>
-                    <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex w-full lg:w-auto overflow-x-auto shrink-0">
+                    <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex w-full lg:w-auto overflow-x-auto shrink-0 relative">
+                        {isTabRefreshing && (
+                            <div className="absolute inset-0 bg-white/20 dark:bg-slate-900/20 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl">
+                                <RefreshCw size={14} className="animate-spin text-blue-600" />
+                            </div>
+                        )}
                         <button
-                            onClick={() => setViewTab('monitor')}
+                            onClick={() => handleTabChange('monitor')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewTab === 'monitor' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
                         >
                             <LayoutDashboard size={18} /> 实时监控
                         </button>
                         <button
-                            onClick={() => setViewTab('risk')}
+                            onClick={() => handleTabChange('risk')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewTab === 'risk' ? 'bg-white dark:bg-slate-700 shadow-sm text-red-600 font-black' : 'text-slate-500'}`}
                         >
                             <AlertTriangle size={18} /> 风险预警
                             {stats.conflictCount > 0 && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
                         </button>
                         <button
-                            onClick={() => setViewTab('maintenance')}
+                            onClick={() => handleTabChange('maintenance')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewTab === 'maintenance' ? 'bg-white dark:bg-slate-700 shadow-sm text-amber-600' : 'text-slate-500'}`}
                         >
                             <Hammer size={18} /> 维护保养
                         </button>
                         <button
-                            onClick={() => setViewTab('calendar')}
+                            onClick={() => handleTabChange('calendar')}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${viewTab === 'calendar' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600' : 'text-slate-500'}`}
                         >
                             <Calendar size={18} /> 空闲日历
                         </button>
                     </div>
-                    <Button
-                        variant="outline"
-                        icon={RefreshCw}
-                        className="hidden sm:flex"
-                        onClick={() => {
-                            // Simulate data refresh
-                            setBays([...MOCK_BAYS]);
-                            setMachines([...MOCK_MACHINES]);
-                        }}
-                    >
-                        同步最新数据
-                    </Button>
-                    <Button variant="primary" icon={Zap} className="hidden sm:flex">一键智能排期</Button>
+                    {isPMO && (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleImportExcel}
+                                accept=".xlsx, .xls"
+                                className="hidden"
+                            />
+                            <Button
+                                variant="outline"
+                                icon={Upload}
+                                onClick={() => fileInputRef.current?.click()}
+                                className="border-slate-200 text-slate-600 hover:bg-slate-50"
+                            >
+                                导入 Excel
+                            </Button>
+                            <Button
+                                variant="outline"
+                                icon={Download}
+                                onClick={handleExportExcel}
+                                className="border-slate-200 text-slate-600 hover:bg-slate-50"
+                            >
+                                导出 Excel
+                            </Button>
+                            <Button
+                                variant="primary"
+                                icon={Plus}
+                                onClick={() => setShowAddResourceModal(true)}
+                                className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20"
+                            >
+                                新增资产
+                            </Button>
+                        </div>
+                    )}
+                    <Button variant="outline" className="hidden sm:flex border-slate-200 text-slate-500" icon={Zap}>一键智能排期</Button>
                 </div>
             </div>
 
@@ -480,77 +877,165 @@ const BayMachineResource: React.FC = () => {
                     >
                         <Card className="p-6">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                                    <button
-                                        onClick={() => setResourceType('bay')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${resourceType === 'bay' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
-                                    >
-                                        Bay 状态
-                                    </button>
-                                    <button
-                                        onClick={() => setResourceType('machine')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${resourceType === 'machine' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
-                                    >
-                                        机器状态
-                                    </button>
-                                </div>
-                                <div className="flex items-center gap-3 w-full md:w-auto">
-                                    <div className="relative flex-1 md:w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="搜索资源或项目..."
-                                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
+                                <div className="flex flex-col gap-4 w-full md:w-auto">
+                                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
+                                        <button
+                                            onClick={() => setResourceType('bay')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${resourceType === 'bay' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                        >
+                                            Bay 状态
+                                        </button>
+                                        <button
+                                            onClick={() => setResourceType('machine')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${resourceType === 'machine' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                        >
+                                            机器状态
+                                        </button>
                                     </div>
-                                    <div className="flex border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                                        <button onClick={() => setViewMode('visual')} className={`p-2 ${viewMode === 'visual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><MapIcon size={18} /></button>
-                                        <button onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><ListIcon size={18} /></button>
+
+                                    {/* Sub-filters for Size/Platform/Status */}
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">分类:</span>
+                                            {resourceType === 'bay' ? (
+                                                <div className="flex gap-2">
+                                                    {['all', 'S', 'M', 'L'].map(size => (
+                                                        <button
+                                                            key={size}
+                                                            onClick={() => setSizeFilter(size as any)}
+                                                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${sizeFilter === size ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                                        >
+                                                            {size === 'all' ? '全部尺寸' : `SIZE ${size}`}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex gap-2">
+                                                    {['all', ...PLATFORMS].map(platform => (
+                                                        <button
+                                                            key={platform}
+                                                            onClick={() => setPlatformFilter(platform)}
+                                                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${platformFilter === platform ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                                        >
+                                                            {platform === 'all' ? '全部平台' : platform}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">状态:</span>
+                                            <div className="flex gap-2">
+                                                {['all', 'available', 'occupied', 'maintenance'].map(status => (
+                                                    <button
+                                                        key={status}
+                                                        onClick={() => setStatusFilter(status as any)}
+                                                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all border ${statusFilter === status ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                                    >
+                                                        {status === 'all' ? '全部' : status === 'available' ? '可用' : status === 'occupied' ? '已占用' : '维护中'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+                                    <div className="flex items-center gap-3 w-full md:w-auto">
+                                        <div className="relative flex-1 md:w-64">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="text"
+                                                placeholder="搜索资源或项目..."
+                                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+                                            <button onClick={() => setViewMode('visual')} className={`p-2.5 ${viewMode === 'visual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><MapIcon size={18} /></button>
+                                            <button onClick={() => setViewMode('list')} className={`p-2.5 ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><ListIcon size={18} /></button>
+                                        </div>
+                                    </div>
+                                    {/* Legend */}
+                                    <div className="flex gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" />可用</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" />已锁定</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500" />维护中</div>
                                     </div>
                                 </div>
                             </div>
 
                             {viewMode === 'visual' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                                     {filteredItems.map(item => (
                                         <motion.div
                                             layout
                                             key={item.id}
                                             onClick={() => setSelectedResource(item)}
-                                            className={`relative p-4 rounded-2xl border transition-all cursor-pointer group ${item.status === 'occupied' ? 'bg-blue-50/30 border-blue-100 dark:bg-blue-900/10 dark:border-blue-900/50' :
-                                                item.status === 'maintenance' ? 'bg-amber-50/30 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/50' :
-                                                    'bg-slate-50/30 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700'
-                                                } hover:shadow-lg hover:scale-[1.02]`}
+                                            className={`relative p-4 rounded-2xl border transition-all cursor-pointer group ${item.status === 'occupied' ? 'bg-blue-50/40 border-blue-200 dark:bg-blue-900/10 dark:border-blue-900/50 shadow-sm' :
+                                                item.status === 'maintenance' ? 'bg-amber-50/40 border-amber-200 dark:bg-amber-900/10 dark:border-amber-900/50 shadow-sm' :
+                                                    'bg-slate-50/40 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700'
+                                                } hover:shadow-xl hover:scale-[1.02] hover:border-blue-400`}
                                         >
                                             <div className="flex justify-between items-start mb-3">
-                                                <div className={`p-2 rounded-xl ${item.status === 'available' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                <div className={`p-2 rounded-xl ${item.status === 'available' ? 'bg-emerald-100 text-emerald-600' :
+                                                    item.status === 'maintenance' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
                                                     {resourceType === 'bay' ? <Box size={18} /> : <Cpu size={18} />}
                                                 </div>
                                                 <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.health < 40 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                    {Math.round(item.health)}% 健康
+                                                    {Math.round(item.health)}%
                                                 </div>
                                             </div>
-                                            <div className="text-sm font-extrabold truncate">{item.name}</div>
-                                            <div className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">
-                                                {resourceType === 'bay' ? `SIZE: ${(item as BayResource).size}` : `MOD: ${(item as MachineResource).model}`}
+
+                                            <div className="text-sm font-black truncate text-slate-900 dark:text-slate-100">{item.name}</div>
+
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {resourceType === 'bay' ? (
+                                                    <Badge variant="primary" size="sm" className="text-[9px] px-1.5 h-4 py-0 leading-none">SIZE: {(item as BayResource).size}</Badge>
+                                                ) : (
+                                                    <>
+                                                        <Badge variant="primary" size="sm" className="text-[9px] px-1.5 h-4 py-0 leading-none">PLAT: {(item as MachineResource).platform}</Badge>
+                                                        <Badge variant="neutral" size="sm" className="text-[9px] px-1.5 h-4 py-0 leading-none">MOD: {(item as MachineResource).model}</Badge>
+                                                    </>
+                                                )}
                                             </div>
-                                            <div className="mt-4">
+
+                                            {/* Binding Relationship Visualization */}
+                                            <div className="mt-4 space-y-2">
+                                                {resourceType === 'bay' && (item as BayResource).currentMachineName && (
+                                                    <div className="p-2 rounded-lg bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                                                        <div className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 uppercase">
+                                                            <Cpu size={10} /> 绑定机器
+                                                        </div>
+                                                        <div className="text-[11px] font-black truncate text-emerald-700 dark:text-emerald-300">{(item as BayResource).currentMachineName}</div>
+                                                    </div>
+                                                )}
+
+                                                {resourceType === 'machine' && (item as MachineResource).currentBayName && (
+                                                    <div className="p-2 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30">
+                                                        <div className="text-[9px] text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1 uppercase">
+                                                            <Box size={10} /> 所在 Bay 位
+                                                        </div>
+                                                        <div className="text-[11px] font-black truncate text-blue-700 dark:text-blue-300">{(item as MachineResource).currentBayName}</div>
+                                                    </div>
+                                                )}
+
                                                 {item.currentProjectName ? (
-                                                    <div className="p-2 rounded-lg bg-white/60 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
-                                                        <div className="text-[10px] text-slate-400 font-medium">使用中</div>
-                                                        <div className="text-[11px] font-bold truncate text-blue-600">{item.currentProjectName}</div>
+                                                    <div className="p-2 rounded-lg bg-slate-900/5 dark:bg-white/5 border border-slate-200/50 dark:border-white/10">
+                                                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">项目任务</div>
+                                                        <div className="text-[11px] font-bold truncate text-slate-800 dark:text-slate-200">{item.currentProjectName}</div>
                                                     </div>
                                                 ) : (
-                                                    <div className={`text-[10px] font-bold py-1 px-2 rounded-full w-fit ${item.status === 'maintenance' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                        {item.status === 'maintenance' ? '维护中' : '可预约'}
+                                                    <div className={`text-[10px] font-black py-1 px-3 rounded-full w-fit ${item.status === 'maintenance' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 shadow-sm'}`}>
+                                                        {item.status === 'maintenance' ? '正在维护' : '可预约'}
                                                     </div>
                                                 )}
                                             </div>
 
                                             {item.conflicts && item.conflicts.length > 0 && (
-                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg ring-2 ring-white animate-bounce">
+                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 shadow-lg ring-2 ring-white animate-bounce">
                                                     <AlertTriangle size={12} />
                                                 </div>
                                             )}
@@ -565,8 +1050,9 @@ const BayMachineResource: React.FC = () => {
                                                 <th className="px-6 py-4">资源名称</th>
                                                 <th className="px-6 py-4">健康度</th>
                                                 <th className="px-6 py-4">状态</th>
-                                                <th className="px-6 py-4">归属/冲突</th>
-                                                <th className="px-6 py-4">下次维护</th>
+                                                <th className="px-6 py-4">绑定信息</th>
+                                                <th className="px-6 py-4">归属记录</th>
+                                                <th className="px-6 py-4">下个维保</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -592,6 +1078,21 @@ const BayMachineResource: React.FC = () => {
                                                         <Badge variant={item.status === 'available' ? 'success' : item.status === 'occupied' ? 'primary' : 'warning'}>
                                                             {item.status === 'available' ? '可用' : item.status === 'occupied' ? '占用' : '维护'}
                                                         </Badge>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {resourceType === 'bay' ? (
+                                                            (item as BayResource).currentMachineName ? (
+                                                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                                                                    <Cpu size={12} /> {(item as BayResource).currentMachineName}
+                                                                </div>
+                                                            ) : '-'
+                                                        ) : (
+                                                            (item as MachineResource).currentBayName ? (
+                                                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                                                                    <Box size={12} /> {(item as MachineResource).currentBayName}
+                                                                </div>
+                                                            ) : '-'
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {item.conflicts && item.conflicts.length > 0 ? (
@@ -1096,10 +1597,21 @@ const BayMachineResource: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={() => {
-                                    setSelectedResource(null);
-                                    setIsEditingName(false);
-                                }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} /></button>
+                                <div className="flex items-center gap-2">
+                                    {isPMO && (
+                                        <button
+                                            onClick={() => handleDeleteResource(selectedResource.id)}
+                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all"
+                                            title="删除资源"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
+                                    )}
+                                    <button onClick={() => {
+                                        setSelectedResource(null);
+                                        setIsEditingName(false);
+                                    }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} /></button>
+                                </div>
                             </div>
 
                             <div className="space-y-8">
@@ -1116,204 +1628,439 @@ const BayMachineResource: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Action Panel */}
-                                <div>
-                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                                        <Zap size={16} /> 快速操作
-                                    </h4>
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                                    <Settings2 size={16} /> 资源配置信息
+                                </h4>
+                                <div className="p-5 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 mb-8">
                                     <div className="space-y-4">
-                                        {selectedResource.status === 'occupied' ? (
-                                            canManageResource(selectedResource) ? (
-                                                <Button
-                                                    variant="outline"
-                                                    className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 py-6 text-sm font-black"
-                                                    onClick={() => handleRelease(selectedResource.id)}
-                                                >
-                                                    结束当前项目使用 (释放)
-                                                </Button>
-                                            ) : (
-                                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 text-center">
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">权限受限</p>
-                                                    <p className="text-xs text-slate-500 mt-1">仅预定人可以管理或释放此设备</p>
-                                                </div>
-                                            )
-                                        ) : selectedResource.status === 'available' ? (
-                                            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
-                                                {!showBookingForm ? (
-                                                    <Button
-                                                        variant="primary"
-                                                        className="w-full py-6 text-sm font-black shadow-lg shadow-blue-500/20"
-                                                        onClick={() => setShowBookingForm(true)}
-                                                        disabled={!canBook}
-                                                    >
-                                                        {canBook ? '立即为项目预定' : '暂无预定权限'}
-                                                    </Button>
+                                        {isEditingClassification && isPMO ? (
+                                            <div className="space-y-4">
+                                                {selectedResource.id.startsWith('bay') ? (
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Bay 尺寸</label>
+                                                        <div className="flex gap-2 mt-1">
+                                                            {['S', 'M', 'L'].map(sz => (
+                                                                <button
+                                                                    key={sz}
+                                                                    onClick={() => setEditClassificationValue({ ...editClassificationValue, size: sz as BaySize })}
+                                                                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${editClassificationValue.size === sz ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-600'}`}
+                                                                >
+                                                                    {sz}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 ) : (
-                                                    <div className="space-y-3">
+                                                    <div className="grid grid-cols-2 gap-3">
                                                         <div>
-                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">关联项目</label>
-                                                            <select
-                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                                                                value={bookingData.projectId}
-                                                                onChange={(e) => setBookingData({ ...bookingData, projectId: e.target.value })}
-                                                            >
-                                                                <option value="">请选择项目...</option>
-                                                                {projects.map(p => (
-                                                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                                                ))}
-                                                            </select>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">平台分类</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={editClassificationValue.platform}
+                                                                onChange={(e) => setEditClassificationValue({ ...editClassificationValue, platform: e.target.value })}
+                                                            />
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <div>
-                                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">开始日期</label>
-                                                                <input
-                                                                    type="date"
-                                                                    className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
-                                                                    value={bookingData.startDate}
-                                                                    onChange={(e) => setBookingData({ ...bookingData, startDate: e.target.value })}
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">结束日期</label>
-                                                                <input
-                                                                    type="date"
-                                                                    className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
-                                                                    value={bookingData.endDate}
-                                                                    onChange={(e) => setBookingData({ ...bookingData, endDate: e.target.value })}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex gap-2 pt-2">
-                                                            <Button
-                                                                variant="ghost"
-                                                                className="flex-1 text-xs"
-                                                                onClick={() => setShowBookingForm(false)}
-                                                            >
-                                                                取消
-                                                            </Button>
-                                                            <Button
-                                                                variant="primary"
-                                                                className="flex-1 text-xs"
-                                                                disabled={!bookingData.projectId}
-                                                                onClick={() => handleBooking(selectedResource)}
-                                                            >
-                                                                确认预定
-                                                            </Button>
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">设备型号</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={editClassificationValue.model}
+                                                                onChange={(e) => setEditClassificationValue({ ...editClassificationValue, model: e.target.value })}
+                                                            />
                                                         </div>
                                                     </div>
                                                 )}
+                                                <div className="flex gap-2 pt-2">
+                                                    <Button variant="ghost" className="flex-1 text-xs" onClick={() => setIsEditingClassification(false)}>取消</Button>
+                                                    <Button variant="primary" className="flex-1 text-xs" onClick={() => {
+                                                        const updates: any = selectedResource.id.startsWith('bay')
+                                                            ? { size: editClassificationValue.size }
+                                                            : { platform: editClassificationValue.platform, model: editClassificationValue.model };
+                                                        updateResourcePool(selectedResource.id, updates, (selectedResource as any).version);
+                                                        setIsEditingClassification(false);
+                                                    }}>保存更改</Button>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-                                                <p className="text-xs text-amber-600 font-medium text-center italic">设备维护中，暂不可用</p>
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    {selectedResource.id.startsWith('bay') ? (
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xs text-slate-400">尺寸分类:</span>
+                                                            <Badge variant="primary" size="sm">{(selectedResource as BayResource).size}</Badge>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-xs text-slate-400">平台:</span>
+                                                                <Badge variant="primary" size="sm">{(selectedResource as MachineResource).platform}</Badge>
+                                                            </div>
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="text-xs text-slate-400">型号:</span>
+                                                                <Badge variant="neutral" size="sm">{(selectedResource as MachineResource).model}</Badge>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                {isPMO && (
+                                                    <Button variant="ghost" size="sm" className="text-blue-600 font-bold" onClick={() => {
+                                                        setEditClassificationValue({
+                                                            size: (selectedResource as any).size || 'S',
+                                                            platform: (selectedResource as any).platform || '',
+                                                            model: (selectedResource as any).model || ''
+                                                        });
+                                                        setIsEditingClassification(true);
+                                                    }}>编辑</Button>
+                                                )}
                                             </div>
                                         )}
-
-                                        <Button
-                                            variant="outline"
-                                            icon={Hammer}
-                                            className="w-full justify-center py-4 text-xs font-bold"
-                                            onClick={() => handleMaintenance(selectedResource.id)}
-                                            disabled={isActionLoading || !canManageResource(selectedResource)}
-                                        >
-                                            {isActionLoading ? '正在同步维保数据...' : canManageResource(selectedResource) ? '执行一键维保/校准' : '仅限PMO管理未占用设备'}
-                                        </Button>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-4">
-                                        <Calendar size={16} /> 预定排程周期
-                                        <Badge variant="neutral" className="ml-auto text-[10px]">{selectedResource.bookings.length} 记录</Badge>
-                                    </h4>
-                                    <div className="space-y-3">
-                                        {selectedResource.bookings.map(b => (
-                                            <div key={b.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-2xl flex justify-between items-center group hover:border-blue-200 transition-colors">
-                                                <div>
-                                                    <div className="font-bold text-sm text-slate-900 dark:text-slate-100">{b.projectName}</div>
-                                                    <div className="text-xs text-slate-400">{b.startDate} 至 {b.endDate}</div>
-                                                </div>
-                                                <Badge variant="outline" className="opacity-60 group-hover:opacity-100 transition-opacity">已确认</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                                            <History size={16} /> 变更与维护日志
-                                        </h4>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-[10px] font-black uppercase text-blue-600 p-0 h-auto"
-                                            onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
-                                        >
-                                            {showMaintenanceForm ? '取消录入' : '+ 手动录入记录'}
-                                        </Button>
-                                    </div>
-
-                                    {showMaintenanceForm && (
-                                        <div className="mb-6 p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30 space-y-4 animate-fadeIn">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">部件/项目名称</label>
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                                    <Zap size={16} /> 快速操作
+                                </h4>
+                                <div className="space-y-4">
+                                    {selectedResource.status === 'occupied' ? (
+                                        canManageResource(selectedResource) ? (
+                                            <div className="space-y-3 p-4 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-100">
+                                                <p className="text-xs font-bold text-red-600 mb-1">设备归还确认</p>
+                                                <div className="flex items-center gap-2 mb-3">
                                                     <input
-                                                        type="text"
-                                                        placeholder="例如: 传感器组件"
-                                                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
-                                                        value={maintenanceLogData.partName}
-                                                        onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, partName: e.target.value })}
+                                                        type="checkbox"
+                                                        id="return-status"
+                                                        className="w-4 h-4"
+                                                        onChange={(e) => (window as any)._returnStatus = e.target.checked}
                                                     />
+                                                    <label htmlFor="return-status" className="text-[11px] font-bold text-slate-600">确认设备各项功能正常，无损坏</label>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">执行人员</label>
-                                                    <input
-                                                        type="text"
-                                                        className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
-                                                        value={maintenanceLogData.performedBy}
-                                                        onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, performedBy: e.target.value })}
-                                                    />
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full justify-center border-red-200 text-red-600 hover:bg-red-50 py-6 text-sm font-black"
+                                                    onClick={() => handleRelease(selectedResource.id, (window as any)._returnStatus || false)}
+                                                >
+                                                    确认归还并释放
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 text-center">
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">权限受限</p>
+                                                <p className="text-xs text-slate-500 mt-1">仅预定人可以管理或释放此设备</p>
+                                            </div>
+                                        )
+                                    ) : selectedResource.status === 'available' ? (
+                                        <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
+                                            {!showBookingForm ? (
+                                                <Button
+                                                    variant="primary"
+                                                    className="w-full py-6 text-sm font-black shadow-lg shadow-blue-500/20"
+                                                    onClick={() => setShowBookingForm(true)}
+                                                    disabled={!canBook || selectedResource.status !== 'available'}
+                                                >
+                                                    {canBook ? (selectedResource.status === 'available' ? '立即为项目预定' : '资源不可用') : '暂无预定权限'}
+                                                </Button>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">关联项目 *</label>
+                                                        <select
+                                                            className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                                            value={bookingData.projectId}
+                                                            onChange={(e) => setBookingData({ ...bookingData, projectId: e.target.value })}
+                                                        >
+                                                            <option value="">请选择项目...</option>
+                                                            {projects.map(p => (
+                                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="col-span-2">
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">预订人姓名 *</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="请输入您的姓名"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={bookingExtra.reservedByName}
+                                                                onChange={(e) => setBookingExtra({ ...bookingExtra, reservedByName: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">使用部门</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="如: 硬件研发部"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={bookingExtra.dept}
+                                                                onChange={(e) => setBookingExtra({ ...bookingExtra, dept: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">使用用途</label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="如: 信号噪声测试"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={bookingExtra.purpose}
+                                                                onChange={(e) => setBookingExtra({ ...bookingExtra, purpose: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">开始日期</label>
+                                                            <input
+                                                                type="date"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={bookingData.startDate}
+                                                                onChange={(e) => setBookingData({ ...bookingData, startDate: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">结束日期</label>
+                                                            <input
+                                                                type="date"
+                                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                                value={bookingData.endDate}
+                                                                onChange={(e) => setBookingData({ ...bookingData, endDate: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {!selectedResource.id.startsWith('bay') && (
+                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-2 mb-2">
+                                                                <Box size={12} /> 绑定测试 Bay 位 (可选)
+                                                            </label>
+                                                            <select
+                                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                                value={bookingExtra.bindToBayId}
+                                                                onChange={(e) => setBookingExtra({ ...bookingExtra, bindToBayId: e.target.value })}
+                                                            >
+                                                                <option value="">不绑定 Bay 位</option>
+                                                                {bays.filter(b => b.status === 'available').map(bay => (
+                                                                    <option key={bay.id} value={bay.id}>{bay.name} ({bay.size}型)</option>
+                                                                ))}
+                                                            </select>
+                                                            <p className="text-[9px] text-slate-400 mt-2 italic">* 绑定后，该 Bay 位将同步变更为“已占用”状态</p>
+                                                        </div>
+                                                    )}
+                                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 flex items-center gap-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="status-check"
+                                                            className="w-4 h-4"
+                                                            checked={bookingExtra.statusChecked}
+                                                            onChange={(e) => setBookingExtra({ ...bookingExtra, statusChecked: e.target.checked })}
+                                                        />
+                                                        <label htmlFor="status-check" className="text-[11px] font-bold text-blue-700">确认当前设备状态良好，可支撑测试任务</label>
+                                                    </div>
+                                                    <div className="flex gap-2 pt-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            className="flex-1 text-xs"
+                                                            onClick={() => setShowBookingForm(false)}
+                                                        >
+                                                            取消
+                                                        </Button>
+                                                        <Button
+                                                            variant="primary"
+                                                            className="flex-1 text-xs"
+                                                            disabled={!bookingData.projectId || !bookingExtra.statusChecked || !bookingExtra.reservedByName}
+                                                            onClick={() => handleBooking(selectedResource)}
+                                                        >
+                                                            确认预定
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">详情描述 / 变更原因</label>
-                                                <textarea
-                                                    className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs h-20"
-                                                    value={maintenanceLogData.reason}
-                                                    onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, reason: e.target.value })}
-                                                />
-                                            </div>
-                                            <Button
-                                                variant="primary"
-                                                className="w-full h-10 text-xs rounded-xl"
-                                                disabled={!maintenanceLogData.partName || !maintenanceLogData.reason}
-                                                onClick={handleAddMaintenanceLog}
-                                            >
-                                                确认保存并追加日志
-                                            </Button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                                            <p className="text-xs text-amber-600 font-medium text-center italic">设备维护中，暂不可用</p>
                                         </div>
                                     )}
 
-                                    <div className="space-y-4">
-                                        {selectedResource.replacementHistory?.map(rec => (
-                                            <div key={rec.id} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-l-4 border-amber-500">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-xs font-black text-amber-600 uppercase">部件更换</span>
-                                                    <span className="text-[10px] text-slate-400">{rec.date}</span>
+                                    <Button
+                                        variant="outline"
+                                        icon={Hammer}
+                                        className="w-full justify-center py-4 text-xs font-bold"
+                                        onClick={() => handleMaintenance(selectedResource.id)}
+                                        disabled={isActionLoading || !canManageResource(selectedResource)}
+                                    >
+                                        {isActionLoading ? '正在同步维保数据...' : canManageResource(selectedResource) ? '执行一键维保/校准' : '仅限PMO管理未占用设备'}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-4">
+                                    <Calendar size={16} /> 预定排程周期
+                                    <Badge variant="neutral" className="ml-auto text-[10px]">{selectedResource.bookings.length} 记录</Badge>
+                                </h4>
+                                <div className="space-y-3">
+                                    {selectedResource.bookings.map(b => (
+                                        <div key={b.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-2xl flex justify-between items-center group hover:border-blue-200 transition-colors">
+                                            <div>
+                                                <div className="font-bold text-sm text-slate-900 dark:text-slate-100">{b.projectName}</div>
+                                                <div className="text-xs text-slate-400">{b.startDate} 至 {b.endDate}</div>
+                                            </div>
+                                            <Badge variant="outline" className="opacity-60 group-hover:opacity-100 transition-opacity">已确认</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                                    <AlarmClock size={16} /> 维保预约申请
+                                </h4>
+                                <div className="p-5 bg-amber-50/50 dark:bg-amber-900/10 rounded-3xl border border-amber-100 dark:border-amber-900/30 space-y-4">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">维保类型</label>
+                                            <select
+                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                value={maintenanceReservation.type}
+                                                onChange={(e) => setMaintenanceReservation({ ...maintenanceReservation, type: e.target.value as any })}
+                                            >
+                                                <option value="routine">常规保养</option>
+                                                <option value="breakdown">故障报修</option>
+                                                <option value="upgrade">性能升级</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">拟定日期</label>
+                                            <input
+                                                type="date"
+                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                value={maintenanceReservation.date}
+                                                onChange={(e) => setMaintenanceReservation({ ...maintenanceReservation, date: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">详细描述</label>
+                                        <textarea
+                                            placeholder="请说明维保需求或故障现象..."
+                                            className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs h-20"
+                                            value={maintenanceReservation.description}
+                                            onChange={(e) => setMaintenanceReservation({ ...maintenanceReservation, description: e.target.value })}
+                                        />
+                                    </div>
+                                    <Button
+                                        variant="primary"
+                                        className="w-full h-10 text-xs rounded-xl bg-amber-500 hover:bg-amber-600 border-none"
+                                        disabled={!maintenanceReservation.description}
+                                        onClick={handleMaintenanceReservation}
+                                    >
+                                        提交维保预约请求
+                                    </Button>
+                                </div>
+
+                                {/* Display existing plans for this resource */}
+                                {selectedResource.maintenancePlans && selectedResource.maintenancePlans.length > 0 && (
+                                    <div className="mt-4 space-y-3">
+                                        {selectedResource.maintenancePlans.map(plan => (
+                                            <div key={plan.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-3xl shadow-sm space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <div className="text-xs font-black text-slate-700 dark:text-slate-200">{plan.type === 'routine' ? '常规保养' : plan.type === 'breakdown' ? '故障报修' : '性能升级'}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-0.5">{plan.plannedDate}</div>
+                                                    </div>
+                                                    <Badge variant={plan.status === 'pending' ? 'warning' : plan.status === 'accepted' ? 'success' : 'danger'} size="sm">
+                                                        {plan.status === 'pending' ? '待审核' : plan.status === 'accepted' ? '已通过' : '已拒绝'}
+                                                    </Badge>
                                                 </div>
-                                                <div className="text-sm font-black text-slate-900 dark:text-slate-100">{rec.partName}</div>
-                                                <div className="text-xs text-slate-500 mt-1">原因: {rec.reason}</div>
-                                                <div className="text-[10px] text-slate-400 mt-2 font-medium">执行人: {rec.performedBy}</div>
+                                                {plan.approvalRemarks && (
+                                                    <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-l-4 border-slate-300">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-1">审批反馈 ({plan.approver})</p>
+                                                        <p className="text-[11px] text-slate-600 dark:text-slate-400 italic">"{plan.approvalRemarks}"</p>
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-slate-500 line-clamp-2">申请摘录: {plan.description}</p>
                                             </div>
                                         ))}
-                                        {(!selectedResource.replacementHistory || selectedResource.replacementHistory.length === 0) && (
-                                            <div className="text-sm text-slate-400 italic p-4 text-center border-2 border-dashed border-slate-100 rounded-2xl">
-                                                暂无重大部件更换记录
-                                            </div>
-                                        )}
                                     </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                                        <History size={16} /> 变更与维护日志
+                                    </h4>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-[10px] font-black uppercase text-blue-600 p-0 h-auto"
+                                        onClick={() => setShowMaintenanceForm(!showMaintenanceForm)}
+                                    >
+                                        {showMaintenanceForm ? '取消录入' : '+ 手动录入记录'}
+                                    </Button>
+                                </div>
+
+                                {showMaintenanceForm && (
+                                    <div className="mb-6 p-5 bg-blue-50/30 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30 space-y-4 animate-fadeIn">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">部件/项目名称</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="例如: 传感器组件"
+                                                    className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                    value={maintenanceLogData.partName}
+                                                    onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, partName: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">执行人员</label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs"
+                                                    value={maintenanceLogData.performedBy}
+                                                    onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, performedBy: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">详情描述 / 变更原因</label>
+                                            <textarea
+                                                className="w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs h-20"
+                                                value={maintenanceLogData.reason}
+                                                onChange={(e) => setMaintenanceLogData({ ...maintenanceLogData, reason: e.target.value })}
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="primary"
+                                            className="w-full h-10 text-xs rounded-xl"
+                                            disabled={!maintenanceLogData.partName || !maintenanceLogData.reason}
+                                            onClick={handleAddMaintenanceLog}
+                                        >
+                                            确认保存并追加日志
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="space-y-4">
+                                    {selectedResource.replacementHistory?.map(rec => (
+                                        <div key={rec.id} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-l-4 border-amber-500">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xs font-black text-amber-600 uppercase">部件更换</span>
+                                                <span className="text-[10px] text-slate-400">{rec.date}</span>
+                                            </div>
+                                            <div className="text-sm font-black text-slate-900 dark:text-slate-100">{rec.partName}</div>
+                                            <div className="text-xs text-slate-500 mt-1">原因: {rec.reason}</div>
+                                            <div className="text-[10px] text-slate-400 mt-2 font-medium">执行人: {rec.performedBy}</div>
+                                        </div>
+                                    ))}
+                                    {(!selectedResource.replacementHistory || selectedResource.replacementHistory.length === 0) && (
+                                        <div className="text-sm text-slate-400 italic p-4 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                                            暂无重大部件更换记录
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
@@ -1565,67 +2312,188 @@ const BayMachineResource: React.FC = () => {
                                             <CalendarDays size={32} className="text-white" />
                                         </div>
                                         <div>
-                                            <h2 className="text-3xl font-black">资产保养排期表</h2>
-                                            <p className="text-slate-400 mt-1 font-medium">全量硬件设备预防性维护(PM)计划看板</p>
+                                            <h2 className="text-3xl font-black">资产维保管理中心</h2>
+                                            <p className="text-slate-400 mt-1 font-medium">维护计划审批与历史追溯</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => setShowMaintSchedule(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
-                                        <X size={24} />
-                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                                            <button
+                                                onClick={() => setMaintScheduleOffset(0)}
+                                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${maintScheduleOffset === 0 ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                            >
+                                                未来两周
+                                            </button>
+                                            <button
+                                                onClick={() => setMaintScheduleOffset(-14)}
+                                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${maintScheduleOffset < 0 ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                            >
+                                                历史记录
+                                            </button>
+                                        </div>
+                                        <button onClick={() => setShowMaintSchedule(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                            <X size={24} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto p-10 pt-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                                        {[
-                                            { label: '本周待处理', count: 3, color: 'text-red-500', bg: 'bg-red-50' },
-                                            { label: '下周计划', count: 5, color: 'text-amber-500', bg: 'bg-amber-50' },
-                                            { label: '本月预计', count: 12, color: 'text-blue-500', bg: 'bg-blue-50' }
-                                        ].map(stat => (
-                                            <div key={stat.label} className={`${stat.bg} dark:bg-slate-800 p-6 rounded-3xl border border-white/10`}>
-                                                <div className="text-[10px] font-black uppercase text-slate-400 mb-2">{stat.label}</div>
-                                                <div className={`text-3xl font-black ${stat.color}`}>{stat.count} <span className="text-sm font-medium opacity-60">项</span></div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="space-y-12">
-                                        {/* Groups by month */}
-                                        {['2026年 01月', '2026年 02月'].map(month => (
-                                            <div key={month}>
-                                                <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-3">
-                                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" /> {month}
-                                                </h3>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {maintScheduleData
-                                                        .filter(item => {
-                                                            const m = format(new Date(item.nextMaintenance), 'yyyy年 MM月');
-                                                            return m === month;
-                                                        })
-                                                        .map(item => {
-                                                            const isOverdue = new Date(item.nextMaintenance) < new Date();
-                                                            return (
-                                                                <div key={item.id} className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-900 transition-all group flex items-center justify-between">
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.type === 'machine' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                                            {item.type === 'machine' ? <Cpu size={24} /> : <Box size={24} />}
-                                                                        </div>
-                                                                        <div>
-                                                                            <div className="font-bold text-slate-900 dark:text-slate-100">{item.name}</div>
-                                                                            <div className="text-xs text-slate-400 font-mono mt-0.5">{item.nextMaintenance}</div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <Badge variant={isOverdue ? "danger" : (item.health < 60 ? "warning" : "success")} size="sm">
-                                                                            {isOverdue ? '已逾期' : '即将来临'}
-                                                                        </Badge>
-                                                                        <div className="text-[9px] font-black text-slate-400 uppercase mt-2">健康度 {Math.round(item.health)}%</div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                    <div className="space-y-8">
+                                        {/* Visual Timeline Module */}
+                                        <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[32px] border border-slate-100 dark:border-slate-700">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                                                    <TrendingUp size={14} /> 维保负载与排期视图 (Load View)
+                                                </h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Button variant="ghost" size="sm" className="p-1 h-8 w-8" onClick={() => setMaintScheduleOffset(prev => prev - 7)}><ChevronLeft size={16} /></Button>
+                                                    <span className="text-[10px] font-black text-slate-500">{maintScheduleOffset === 0 ? '当前两周' : `偏移 ${maintScheduleOffset} 天`}</span>
+                                                    <Button variant="ghost" size="sm" className="p-1 h-8 w-8" onClick={() => setMaintScheduleOffset(prev => prev + 7)}><ChevronRight size={16} /></Button>
                                                 </div>
                                             </div>
-                                        ))}
+                                            <div className="flex justify-between items-end h-20 gap-1">
+                                                {Array.from({ length: 14 }).map((_, i) => {
+                                                    const date = addDays(addDays(new Date(), maintScheduleOffset), i);
+                                                    const dateStr = format(date, 'yyyy-MM-dd');
+                                                    const dayPlans = [...bays, ...machines].flatMap(r => (r.maintenancePlans || []).filter(p => p.plannedDate === dateStr));
+                                                    const count = dayPlans.length;
+                                                    const isTodayDate = isToday(date);
+
+                                                    return (
+                                                        <div key={i} className="flex-1 flex flex-col items-center group cursor-pointer min-w-0">
+                                                            <div className="relative w-full flex flex-col items-center">
+                                                                {count > 0 && (
+                                                                    <div
+                                                                        className={`w-full max-w-[12px] rounded-t-lg transition-all group-hover:brightness-110 ${count > 2 ? 'bg-red-500' : count > 1 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                                                        style={{ height: `${Math.min(count * 15, 60)}px` }}
+                                                                    >
+                                                                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-900 dark:text-slate-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                                                            {count} 项
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 mt-1 rounded-full overflow-hidden">
+                                                                {isTodayDate && <div className="h-full bg-blue-600 w-full animate-pulse" />}
+                                                            </div>
+                                                            <div className={`mt-2 text-[9px] font-bold ${isTodayDate ? 'text-blue-600' : 'text-slate-400'}`}>
+                                                                {format(date, 'MM/dd')}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Maintenance Plans List */}
+                                        <div className="space-y-6">
+                                            {(() => {
+                                                const allPlans: any[] = [];
+                                                [...bays, ...machines].forEach(r => {
+                                                    if (r.maintenancePlans) {
+                                                        allPlans.push(...r.maintenancePlans.map(p => ({ ...p, resourceId: r.id })));
+                                                    }
+                                                });
+
+                                                const now = new Date();
+                                                const targetStart = addDays(now, maintScheduleOffset);
+                                                const targetEnd = addDays(targetStart, 14);
+
+                                                const filteredPlans = allPlans.filter(p => {
+                                                    const d = new Date(p.plannedDate);
+                                                    // Allow showing historical if offset is negative
+                                                    return d >= targetStart && d <= targetEnd;
+                                                }).sort((a, b) => new Date(a.plannedDate).getTime() - new Date(b.plannedDate).getTime());
+
+                                                if (filteredPlans.length === 0) {
+                                                    return (
+                                                        <div className="text-center py-20 opacity-40">
+                                                            <Calendar size={48} className="mx-auto mb-4" />
+                                                            <p className="font-black text-lg">该时段暂无维保计划</p>
+                                                            <p className="text-sm mt-2">您可以调整上方的时间轴或返回历史记录查看</p>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return filteredPlans.map(plan => (
+                                                    <div key={plan.id} className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[40px] border border-slate-100 dark:border-slate-700 hover:border-amber-300 transition-all group relative overflow-hidden">
+                                                        {plan.status === 'accepted' && <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500" />}
+                                                        {plan.status === 'rejected' && <div className="absolute top-0 left-0 w-2 h-full bg-red-500" />}
+
+                                                        <div className="flex justify-between items-start mb-6">
+                                                            <div className="flex gap-5">
+                                                                <div className={`p-4 rounded-2xl shadow-sm ${plan.type === 'breakdown' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                                    {plan.resourceId.startsWith('bay') ? <Box size={28} /> : <Cpu size={28} />}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{plan.resourceName}</div>
+                                                                    <div className="flex items-center gap-4 mt-1">
+                                                                        <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">{plan.resourceId}</div>
+                                                                        <div className="text-xs text-slate-400 font-bold uppercase tracking-widest px-3 border-l border-slate-200">{plan.applicantDept}</div>
+                                                                        <div className="text-xs text-slate-400 font-bold uppercase tracking-widest px-3 border-l border-slate-200">申请人: {plan.applicant}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <Badge variant={plan.status === 'pending' ? 'warning' : plan.status === 'accepted' ? 'success' : 'danger'} size="lg" className="px-5 py-2 text-sm font-black">
+                                                                {plan.status === 'pending' ? '待 PMO 审批' : plan.status === 'accepted' ? '已排入计划' : '已拒绝请求'}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                                                            <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl shadow-sm">
+                                                                <div className="text-[10px] font-black text-slate-400 uppercase mb-2">预约维保日期</div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <CalendarDays size={18} className="text-blue-500" />
+                                                                    <div className="text-sm font-black text-slate-700 dark:text-slate-200">{plan.plannedDate}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl shadow-sm md:col-span-3">
+                                                                <div className="text-[10px] font-black text-slate-400 uppercase mb-2">维保需求描述</div>
+                                                                <div className="text-sm font-bold text-slate-600 dark:text-slate-300 leading-relaxed">{plan.description}</div>
+                                                            </div>
+                                                        </div>
+
+                                                        {plan.status === 'pending' && isPMO && (
+                                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
+                                                                <div className="md:col-span-2">
+                                                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">审批备注 (必填意见)</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="请输入审批意见或调整建议..."
+                                                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl h-12 px-5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                                                        id={`remarks-${plan.id}`}
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="h-12 border-red-200 text-red-600 hover:bg-red-50 font-black rounded-2xl"
+                                                                    onClick={() => handleApproveMaintenance(plan.resourceId, plan.id, 'rejected', (document.getElementById(`remarks-${plan.id}`) as HTMLInputElement).value)}
+                                                                >
+                                                                    驳回申请
+                                                                </Button>
+                                                                <Button
+                                                                    variant="primary"
+                                                                    className="h-12 bg-emerald-600 hover:bg-emerald-700 border-none font-black rounded-2xl shadow-lg shadow-emerald-500/20"
+                                                                    onClick={() => handleApproveMaintenance(plan.resourceId, plan.id, 'accepted', (document.getElementById(`remarks-${plan.id}`) as HTMLInputElement).value)}
+                                                                >
+                                                                    核准计划
+                                                                </Button>
+                                                            </div>
+                                                        )}
+
+                                                        {(plan.status === 'accepted' || plan.status === 'rejected') && plan.approvalRemarks && (
+                                                            <div className="mt-4 p-6 bg-slate-100/50 dark:bg-slate-900/50 rounded-[24px] border border-slate-200 dark:border-slate-700">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <ShieldCheck size={16} className="text-slate-400" />
+                                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PMO 最终审批意见 (审批人: {plan.approver || '系统'})</div>
+                                                                </div>
+                                                                <div className="text-sm font-bold italic text-slate-600 dark:text-slate-400 leading-relaxed">"{plan.approvalRemarks}"</div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ));
+                                            })()}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1640,6 +2508,116 @@ const BayMachineResource: React.FC = () => {
                             </motion.div>
                         </div>
                     </>
+                )}
+            </AnimatePresence>
+            {/* Add Resource Modal */}
+            <AnimatePresence>
+                {showAddResourceModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowAddResourceModal(false)}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[40px] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
+                        >
+                            <div className="p-8 pb-4 flex justify-between items-center">
+                                <h3 className="text-xl font-black">新增物理资产</h3>
+                                <button onClick={() => setShowAddResourceModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} /></button>
+                            </div>
+
+                            <div className="p-8 pt-2 space-y-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">资源类型</label>
+                                        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+                                            <button
+                                                onClick={() => setNewResourceData({ ...newResourceData, type: 'bay' })}
+                                                className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${newResourceData.type === 'bay' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                            >
+                                                测试 Bay 位
+                                            </button>
+                                            <button
+                                                onClick={() => setNewResourceData({ ...newResourceData, type: 'machine' })}
+                                                className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${newResourceData.type === 'machine' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                            >
+                                                生产设备/机器
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">资产名称 *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="如: Bay-20 或 uCT 760 #15"
+                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl h-14 px-6 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                            value={newResourceData.name}
+                                            onChange={(e) => setNewResourceData({ ...newResourceData, name: e.target.value })}
+                                        />
+                                    </div>
+
+                                    {newResourceData.type === 'bay' ? (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Bay 尺寸分类</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {['S', 'M', 'L'].map(size => (
+                                                    <button
+                                                        key={size}
+                                                        onClick={() => setNewResourceData({ ...newResourceData, size: size as BaySize })}
+                                                        className={`py-3 rounded-xl text-xs font-black border transition-all ${newResourceData.size === size ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-slate-200 text-slate-500 hover:border-blue-300'}`}
+                                                    >
+                                                        {size === 'S' ? '小型 (S)' : size === 'M' ? '中型 (M)' : '大型 (L)'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">所属平台</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Falcon/Eagle..."
+                                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl h-12 px-5 text-xs font-bold outline-none"
+                                                    value={newResourceData.platform}
+                                                    onChange={(e) => setNewResourceData({ ...newResourceData, platform: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">型号代码</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="uCT 760..."
+                                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl h-12 px-5 text-xs font-bold outline-none"
+                                                    value={newResourceData.model}
+                                                    onChange={(e) => setNewResourceData({ ...newResourceData, model: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <Button variant="ghost" className="flex-1 h-14 rounded-2xl font-black" onClick={() => setShowAddResourceModal(false)}>取消</Button>
+                                    <Button
+                                        variant="primary"
+                                        className="flex-1 h-14 rounded-2xl font-black bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/20"
+                                        onClick={handleAddResource}
+                                        disabled={!newResourceData.name}
+                                    >
+                                        确认添加资产
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>
