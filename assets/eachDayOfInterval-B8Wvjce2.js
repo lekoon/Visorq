@@ -1,0 +1,1 @@
+import{ao as a,bj as i}from"./index-BvQyAdiV.js";function f(s,r){const t=a(s);return isNaN(r)?i(s,NaN):(r&&t.setDate(t.getDate()+r),t)}function p(s,r){const t=a(s.start),n=a(s.end);let o=+t>+n;const D=o?+t:+n,e=o?n:t;e.setHours(0,0,0,0);let u=1;const c=[];for(;+e<=D;)c.push(a(e)),e.setDate(e.getDate()+u),e.setHours(0,0,0,0);return o?c.reverse():c}export{f as a,p as e};
