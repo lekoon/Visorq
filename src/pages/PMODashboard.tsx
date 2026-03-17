@@ -2,19 +2,56 @@ import React from 'react';
 import {
     ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
     Tooltip, Cell, BarChart, Bar, CartesianGrid, RadarChart,
-    PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+    PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+    PieChart, Pie
 } from 'recharts';
 import {
-    TrendingUp, Shield, Activity, DollarSign, Users,
-    Layers, Zap, ArrowUpRight, Calendar, Network
+    TrendingUp, Activity, DollarSign, Users,
+    Layers, Zap, ArrowUpRight, Calendar, Network, Target
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Card } from '../components/ui';
 import clsx from 'clsx';
+import { RefreshCw, Database } from 'lucide-react';
+import { syncFeishuData } from '../services/feishuService';
 import { differenceInMonths, parseISO, startOfMonth, addMonths } from 'date-fns';
 
 const PMODashboard: React.FC = () => {
-    const { projects } = useStore();
+    const { 
+        projects, 
+        feishuConfig, 
+        addProject, 
+        resourcePool,
+        addResource,
+        lastSyncTime, 
+        setLastSyncTime 
+    } = useStore();
+    const [isSyncing, setIsSyncing] = React.useState(false);
+
+    const handleFeishuSync = async () => {
+        if (!feishuConfig.appId) return;
+        setIsSyncing(true);
+        try {
+            const result = await syncFeishuData(feishuConfig);
+            if (result.success && result.data) {
+                result.data.projects.forEach(p => {
+                    if (!projects.find(existing => existing.id === p.id)) {
+                        addProject(p);
+                    }
+                });
+                result.data.resources.forEach(r => {
+                    if (!resourcePool.find(existing => existing.id === r.id)) {
+                        addResource(r);
+                    }
+                });
+                setLastSyncTime(new Date().toLocaleString());
+            }
+        } catch (e) {
+            console.error('Sync failed', e);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     // 1. Data Processing for Portfolio Heatmap
     const heatmapData = projects.map(p => ({
@@ -38,16 +75,9 @@ const PMODashboard: React.FC = () => {
         const data: any = { month };
         projects.forEach(p => {
             const aiUsage = p.pmoMetrics?.resourceLoad.find(rl => rl.roleId === 'ai')?.monthlyUsage[month] || 0;
-            if (aiUsage > 0) data[p.name] = aiUsage;
-        });
-        return data;
-    });
-
-    const hardwareLoadData = months.map(month => {
-        const data: any = { month };
-        projects.forEach(p => {
             const hwUsage = p.pmoMetrics?.resourceLoad.find(rl => rl.roleId === 'hardware')?.monthlyUsage[month] || 0;
-            if (hwUsage > 0) data[p.name] = hwUsage;
+            // Combining for a unified workload view
+            if (aiUsage + hwUsage > 0) data[p.name] = aiUsage + hwUsage;
         });
         return data;
     });
@@ -72,7 +102,29 @@ const PMODashboard: React.FC = () => {
         { subject: '资源依赖', A: projects.reduce((sum, p) => sum + (p.pmoMetrics?.valueRiskMetrics.resourceDependency || 0), 0) / (projects.length || 1), fullMark: 5 },
     ];
 
-    // 5. Cash Flow Waterfall
+    // 5. Strategic Mix Calculation (Donut Chart)
+    const projectTypeMap = projects.reduce((acc: Record<string, number>, p) => {
+        const typeId = p.projectType || 'other';
+        acc[typeId] = (acc[typeId] || 0) + (p.pmoMetrics?.rdInvestment || 0);
+        return acc;
+    }, {});
+
+    const strategicMixData = [
+        { name: '新产品研发', value: projectTypeMap['type-rnd'] || 0, color: '#3b82f6' },
+        { name: '预研项目', value: projectTypeMap['type-pre'] || 0, color: '#10b981' },
+        { name: '注册变更', value: projectTypeMap['type-reg'] || 0, color: '#f59e0b' },
+        { name: '产品维护', value: projectTypeMap['type-maint'] || 0, color: '#8b5cf6' },
+    ].filter(item => item.value > 0);
+
+    // 6. Resource Congestion Matrix
+    const resourceCongestion = [
+        { role: 'AI 算法', load: 88, status: 'warning', trend: 'up' },
+        { role: '硬件工程', load: 92, status: 'critical', trend: 'stable' },
+        { role: '软件架构', load: 65, status: 'normal', trend: 'down' },
+        { role: '测试验证', load: 45, status: 'normal', trend: 'stable' },
+    ];
+
+    // 7. Cash Flow Waterfall
     const currentInvestmentTotal = projects.reduce((sum, p) => sum + (p.pmoMetrics?.cashFlow.currentInvestment || 0), 0);
     const totalAnnualBudget = projects.reduce((sum, p) => sum + (p.pmoMetrics?.cashFlow.annualBudget || 0), 0);
     const futureROI_Y1 = projects.reduce((sum, p) => sum + (p.pmoMetrics?.cashFlow.futureROI[0] || 0), 0);
@@ -88,6 +140,10 @@ const PMODashboard: React.FC = () => {
     ];
 
     const npv = totalAnnualBudget - currentInvestmentTotal + futureROI_Y1 + futureROI_Y2 + futureROI_Y3;
+    const roiRate = ((npv / (currentInvestmentTotal || 1)) * 100).toFixed(1);
+
+    // 8. Milestone Predictability Index (Mock)
+    const confidenceIndex = 84.5; // (Hit Rate %)
 
     return (
         <div className="space-y-8 pb-24 max-w-[1700px] mx-auto animate-in fade-in duration-700">
@@ -117,6 +173,27 @@ const PMODashboard: React.FC = () => {
                             >
                                 <Network size={14} /> 切换依赖图谱
                             </button>
+                            {feishuConfig.appId && (
+                                <button
+                                    onClick={handleFeishuSync}
+                                    disabled={isSyncing}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all hover:scale-105",
+                                        isSyncing ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
+                                    )}
+                                >
+                                    <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
+                                    {isSyncing ? '同步中...' : '从飞书同步'}
+                                </button>
+                            )}
+                            {lastSyncTime && (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <Database size={12} className="text-slate-400" />
+                                    <span className="text-[10px] font-bold text-slate-500">
+                                        上次同步: {lastSyncTime}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -127,6 +204,18 @@ const PMODashboard: React.FC = () => {
                             <div className="flex items-center gap-1 text-green-500 text-[10px] font-bold mt-1">
                                 <ArrowUpRight size={12} /> +12.5% vs 去年同期
                             </div>
+                        </div>
+                        <div className="p-6 bg-indigo-600 rounded-[32px] shadow-2xl shadow-indigo-600/30 min-w-[160px] text-white">
+                            <div className="text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">交付可预测性 (CPI)</div>
+                            <div className="text-3xl font-black">{confidenceIndex}%</div>
+                            <div className="flex items-center gap-1 text-indigo-200 text-[10px] font-bold mt-1">
+                                <Target size={12} /> 目标 &gt; 90.0%
+                            </div>
+                        </div>
+                        <div className="p-6 bg-emerald-600 rounded-[32px] shadow-2xl shadow-emerald-600/30 min-w-[160px] text-white">
+                            <div className="text-[10px] font-black text-emerald-100 uppercase tracking-widest mb-1">组合预期盈利率</div>
+                            <div className="text-3xl font-black">{roiRate}%</div>
+                            <div className="text-[10px] font-bold text-emerald-100/70 mt-1 uppercase tracking-tighter">预测周期 36 个月</div>
                         </div>
                         <div className="p-6 bg-blue-600 rounded-[32px] shadow-2xl shadow-blue-600/30 min-w-[160px] text-white">
                             <div className="text-[10px] font-black text-blue-100 uppercase tracking-widest mb-1">在研项目总投入</div>
@@ -236,27 +325,68 @@ const PMODashboard: React.FC = () => {
                     </div>
                 </Card>
 
-                {/* 4. Value vs Risk Radar - Sidebar */}
-                <Card className="lg:col-span-4 p-10 rounded-[40px] shadow-xl border-none bg-gradient-to-b from-slate-900 to-slate-800 text-white overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+                {/* 4. Strategic Mix & Risk Balance - Updated */}
+                <Card className="lg:col-span-4 p-10 rounded-[40px] shadow-xl border-none bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full -mr-32 -mt-32 blur-[80px] group-hover:bg-blue-500/20 transition-all duration-1000" />
                     <div className="relative z-10 h-full flex flex-col">
-                        <div className="flex items-center gap-3 mb-10">
-                            <div className="p-2.5 bg-white/10 rounded-2xl text-purple-400">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="p-2.5 bg-white/10 rounded-2xl text-blue-400">
                                 <Zap size={18} />
                             </div>
                             <div className="space-y-1">
-                                <h3 className="text-xl font-black uppercase tracking-tighter">价值 vs 风险平衡器</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">组合多维度综合评估</p>
+                                <h3 className="text-xl font-black uppercase tracking-tighter">投资结构与风险对冲</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Strategic Allocation & Risk</p>
                             </div>
                         </div>
 
-                        <div className="flex-1 min-h-[300px]">
+                        {/* Strategic Mix Donut */}
+                        <div className="grid grid-cols-2 gap-4 items-center mb-8">
+                            <div className="h-[180px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={strategicMixData}
+                                            innerRadius={55}
+                                            outerRadius={75}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {strategicMixData.map((entry: any, index: number) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    return (
+                                                        <div className="bg-slate-900 border border-slate-700 p-2 rounded-lg text-xs font-bold text-white shadow-2xl">
+                                                            {payload[0].name}: ¥{payload[0].value}W
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="space-y-2">
+                                {strategicMixData.map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                        <div className="text-[9px] font-black text-slate-400 uppercase truncate">{item.name}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 min-h-[220px] -mt-4">
                             <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                     <PolarGrid stroke="#475569" strokeDasharray="3 3" />
                                     <PolarAngleAxis
                                         dataKey="subject"
-                                        tick={{ fontSize: 10, fontWeight: '900', fill: '#94a3b8' }}
+                                        tick={{ fontSize: 9, fontWeight: '900', fill: '#94a3b8' }}
                                     />
                                     <PolarRadiusAxis angle={30} domain={[0, 5]} hide />
                                     <Radar
@@ -271,110 +401,108 @@ const PMODashboard: React.FC = () => {
                             </ResponsiveContainer>
                         </div>
 
-                        <div className="space-y-4 mt-8">
-                            <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 font-mono">Strategic Health Check</div>
-                                <div className="text-xs font-medium leading-relaxed">
-                                    组合整体战略契合度极高 ({radarData[1].A.toFixed(1)}/5.0)，主要资源瓶颈集中在跨团队依赖与国产化适配。
+                        <div className="mt-6 space-y-3">
+                            <div className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
+                                <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2 font-mono flex items-center gap-2">
+                                    <Activity size={10} /> CEO Executive Insight
+                                </div>
+                                <div className="text-[11px] font-medium leading-relaxed text-slate-300">
+                                    研发投入向 <b>新产品研发</b> 倾斜 ({((projectTypeMap['type-rnd'] || 0) / (currentInvestmentTotal || 1) * 100).toFixed(0)}%)。
+                                    当前组合风险评级：<span className="text-emerald-400 font-black">可控</span>。
                                 </div>
                             </div>
                         </div>
                     </div>
                 </Card>
 
-                {/* 2. Resource Load - AI */}
-                <Card className="lg:col-span-6 p-10 rounded-[40px] shadow-xl border-none bg-white dark:bg-slate-800/80">
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-orange-500 rounded-2xl text-white shadow-lg shadow-orange-500/20">
-                                    <Users size={18} />
+                {/* 2. Resource Load & Congestion */}
+                <Card className="lg:col-span-12 p-10 rounded-[48px] shadow-xl border-none bg-white dark:bg-slate-800/80 overflow-hidden relative">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/5 rounded-full -mr-48 -mt-48 blur-[100px]" />
+
+                    <div className="flex flex-col lg:flex-row gap-12 relative z-10">
+                        <div className="flex-1">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-orange-600 rounded-2xl text-white shadow-lg shadow-orange-500/20">
+                                            <Users size={20} />
+                                        </div>
+                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">关键研发资源 负荷矩阵</h3>
+                                    </div>
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">全组合资源占位预测 & 团队瓶颈分析</p>
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">AI 算法团队 资源负载链</h3>
                             </div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">可用产能上限: 20 人月/月</p>
+
+                            <div className="h-[350px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={aiLoadData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeOpacity={0.4} />
+                                        <XAxis
+                                            dataKey="month"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
+                                            tickFormatter={(v) => v.split('-')[1] + '月'}
+                                        />
+                                        <YAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
+                                        />
+                                        <Tooltip
+                                            cursor={{ fill: '#f8fafc', opacity: 0.5 }}
+                                            contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)' }}
+                                        />
+                                        {projects.map((p, i) => (
+                                            <Bar
+                                                key={p.id}
+                                                dataKey={p.name}
+                                                stackId="a"
+                                                fill={['#3b82f6', '#8b5cf6', '#0ea5e9', '#6366f1', '#4f46e5'][i % 5]}
+                                            />
+                                        ))}
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="h-[320px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={aiLoadData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeOpacity={0.4} />
-                                <XAxis
-                                    dataKey="month"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
-                                    tickFormatter={(v) => v.split('-')[1] + '月'}
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc', opacity: 0.5 }}
-                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)' }}
-                                />
-                                {projects.map((p, i) => (
-                                    <Bar
-                                        key={p.id}
-                                        dataKey={p.name}
-                                        stackId="a"
-                                        fill={['#3b82f6', '#8b5cf6', '#0ea5e9', '#6366f1', '#4f46e5'][i % 5]}
-                                        radius={i === projects.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
-                                    />
-                                ))}
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </Card>
-
-                {/* 2. Resource Load - Hardware */}
-                <Card className="lg:col-span-6 p-10 rounded-[40px] shadow-xl border-none bg-white dark:bg-slate-800/80">
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-indigo-500 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
-                                    <Shield size={18} />
+                        <div className="lg:w-[380px] space-y-4">
+                            <div className="mb-6">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">团队健康度监控 (Congestion)</h4>
+                                <div className="space-y-4">
+                                    {resourceCongestion.map((res, i) => (
+                                        <div key={i} className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-[28px] border border-slate-100 dark:border-slate-800 transition-all hover:scale-[1.03]">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <span className="text-sm font-black text-slate-800 dark:text-white uppercase">{res.role}</span>
+                                                <div className={clsx(
+                                                    "px-2.5 py-1 rounded-full text-[9px] font-black uppercase",
+                                                    res.status === 'critical' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/40' :
+                                                        res.status === 'warning' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40' :
+                                                            'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40'
+                                                )}>
+                                                    {res.status}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-[10px] font-bold text-slate-400">资源负载率</span>
+                                                    <span className="text-lg font-black dark:text-white">{res.load}%</span>
+                                                </div>
+                                                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={clsx(
+                                                            "h-full rounded-full transition-all duration-1000",
+                                                            res.load > 90 ? 'bg-rose-500' : res.load > 75 ? 'bg-amber-500' : 'bg-emerald-500'
+                                                        )}
+                                                        style={{ width: `${res.load}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">硬件工程团队 关键负荷</h3>
                             </div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">可用产能上限: 35 人月/月</p>
                         </div>
-                    </div>
-
-                    <div className="h-[320px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={hardwareLoadData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeOpacity={0.4} />
-                                <XAxis
-                                    dataKey="month"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
-                                    tickFormatter={(v) => v.split('-')[1] + '月'}
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fontSize: 11, fontWeight: '800', fill: '#94a3b8' }}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc', opacity: 0.5 }}
-                                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)' }}
-                                />
-                                {projects.map((p, i) => (
-                                    <Bar
-                                        key={p.id}
-                                        dataKey={p.name}
-                                        stackId="a"
-                                        fill={['#60a5fa', '#a78bfa', '#34d399', '#fbbf24', '#818cf8'][i % 5]}
-                                        radius={i === projects.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
-                                    />
-                                ))}
-                            </BarChart>
-                        </ResponsiveContainer>
                     </div>
                 </Card>
 

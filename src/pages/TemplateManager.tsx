@@ -19,7 +19,7 @@ const TemplateManager: React.FC = () => {
         defaultFactors: {},
         defaultResources: []
     });
-
+  
     const initializeFactors = () => {
         const factors: Record<string, number> = {};
         factorDefinitions.forEach(f => factors[f.id] = 5);

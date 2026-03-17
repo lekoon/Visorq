@@ -31,6 +31,7 @@ const RiskManagement = lazy(() => import('./pages/RiskManagement'));
 const EVMAnalysis = lazy(() => import('./pages/EVMAnalysis'));
 const EnvironmentManagement = lazy(() => import('./pages/EnvironmentManagement'));
 const RequirementTraceabilityMatrix = lazy(() => import('./pages/RequirementTraceabilityMatrix'));
+const ProjectTools = lazy(() => import('./pages/ProjectTools'));
 const BayMachineResource = lazy(() => import('./pages/BayMachineResource'));
 
 import SkeletonLoader from './components/SkeletonLoader';
@@ -101,6 +102,7 @@ function App() {
           <Route path="/bay-resources" element={<LayoutRoute><BayMachineResource /></LayoutRoute>} />
           <Route path="/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />
           <Route path="/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
+          <Route path="/project-tools" element={<LayoutRoute><ProjectTools /></LayoutRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

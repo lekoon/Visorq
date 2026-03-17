@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, FolderKanban, PieChart, Settings, Users, LogOut,
     Moon, Sun, Bell, Check, Trash2, Brain, FileText, Copy, Upload,
-    TrendingUp, Search, Shield, BarChart3, Briefcase, Box, Activity
+    TrendingUp, Search, Shield, BarChart3, Briefcase, Box, Activity, Hammer
 } from 'lucide-react';
 import { checkDeadlines, checkResourceConflicts } from '../utils/notifications';
 import clsx from 'clsx';
@@ -193,9 +193,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
 
         // 工作台/个人中心
-        if (path === '/' || path.startsWith('/workbench') || path.startsWith('/profile') || path.startsWith('/settings') || path.startsWith('/bay-resources')) {
+        if (path === '/' || path.startsWith('/workbench') || path.startsWith('/profile') || path.startsWith('/settings') || path.startsWith('/bay-resources') || path.startsWith('/project-tools')) {
             return [
                 { label: '仪表盘', path: '/', icon: LayoutDashboard, description: 'PMO 总览' },
+                { label: '项目工具', path: '/project-tools', icon: Hammer, description: '自动化小工具' },
             ];
         }
 

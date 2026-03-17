@@ -3,7 +3,8 @@ import { useStore } from '../store/useStore';
 import { Plus, Trash2, Download, Upload, AlertTriangle, Database, Shield, Cloud, RefreshCw, CheckCircle, Link as LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { syncFeishuData, type FeishuConfig } from '../services/feishuService';
+import { syncFeishuData } from '../services/feishuService';
+
 
 const Settings: React.FC = () => {
     const {
@@ -15,16 +16,17 @@ const Settings: React.FC = () => {
         projects,
         resourcePool,
         addProject,
-        addResource
+        addResource,
+        feishuConfig,
+        setFeishuConfig,
+        lastSyncTime,
+        setLastSyncTime
     } = useStore();
     const { t } = useTranslation();
     const [newFactorName, setNewFactorName] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-    // Feishu Integration State
-    const [feishuConfig, setFeishuConfig] = useState<FeishuConfig>({ appId: '', appSecret: '' });
     const [isSyncing, setIsSyncing] = useState(false);
-    const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
     const totalWeight = factorDefinitions.reduce((acc, f) => acc + f.weight, 0);
 
@@ -204,6 +206,26 @@ const Settings: React.FC = () => {
                                 onChange={(e) => setFeishuConfig({ ...feishuConfig, appSecret: e.target.value })}
                                 className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                             />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Project Bitable Token / Table ID</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <input
+                                    type="text"
+                                    placeholder="Base Token (e.g. bascn...)"
+                                    value={feishuConfig.projectBaseToken || ''}
+                                    onChange={(e) => setFeishuConfig({ ...feishuConfig, projectBaseToken: e.target.value })}
+                                    className="p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Table ID (e.g. tbl...)"
+                                    value={feishuConfig.projectTableId || ''}
+                                    onChange={(e) => setFeishuConfig({ ...feishuConfig, projectTableId: e.target.value })}
+                                    className="p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1 italic">需在飞书多维表格中开启“项目名称”、“状态”、“预算”等对应字段</p>
                         </div>
                     </div>
 

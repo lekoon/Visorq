@@ -1216,3 +1216,12 @@ export interface ResourceCapacity {
     roleName: string;
     capacity: number; // 总可用产能 (人月/月)
 }
+
+export interface FeishuConfig {
+    appId: string;
+    appSecret: string;
+    projectBaseToken?: string;
+    projectTableId?: string;
+    resourceBaseToken?: string;
+    resourceTableId?: string;
+}

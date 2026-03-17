@@ -33,19 +33,9 @@ import {
 } from 'lucide-react';
 import { Card, Badge, Button } from '../components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-    format,
-    addDays,
-    addMonths,
-    startOfMonth,
-    endOfMonth,
-    eachDayOfInterval,
-    startOfWeek,
-    endOfWeek,
-    isToday,
-    subMonths
-} from 'date-fns';
+import { startOfMonth, addMonths, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isToday, subMonths, format, addDays } from 'date-fns';
 import { useStore } from '../store/useStore';
+import { syncFeishuData } from '../services/feishuService';
 import type { BayResource, MachineResource, BaySize, ResourceBooking, ReplacementRecord, ResourceStatus, SoftwareHistoryRecord } from '../types';
 
 // --- Smart Utils ---
@@ -81,7 +71,11 @@ const BayMachineResource: React.FC = () => {
         setPhysicalMachines,
         updatePhysicalResource,
         deletePhysicalBay,
-        deletePhysicalMachine
+        deletePhysicalMachine,
+        feishuConfig,
+        addProject,
+        addResource,
+        setLastSyncTime: setGlobalLastSyncTime
     } = useStore();
     const [viewTab, setViewTab] = useState<'monitor' | 'risk' | 'maintenance' | 'calendar'>('monitor');
     const [viewMode, setViewMode] = useState<'visual' | 'list'>('visual');
@@ -785,13 +779,32 @@ const BayMachineResource: React.FC = () => {
                         <Button
                             variant="outline"
                             className={`h-12 px-6 rounded-2xl font-black border-slate-200 hover:bg-slate-50 transition-all ${isFeishuSyncing ? 'animate-pulse' : ''}`}
-                            onClick={() => {
-                                if (!isPMO) return;
+                            onClick={async () => {
+                                if (!isPMO || !feishuConfig.appId) return;
                                 setIsFeishuSyncing(true);
-                                setTimeout(() => {
+                                try {
+                                    const result = await syncFeishuData(feishuConfig);
+                                    if (result.success && result.data) {
+                                        result.data.projects.forEach(p => {
+                                            if (!projects.find(existing => existing.id === p.id)) {
+                                                addProject(p);
+                                            }
+                                        });
+                                        result.data.resources.forEach(r => {
+                                            if (!physicalBays.find(existing => existing.id === r.id) && 
+                                                !physicalMachines.find(existing => existing.id === r.id)) {
+                                                // Assuming simple resource add for demo
+                                                addResource(r);
+                                            }
+                                        });
+                                        setLastSyncTime(format(new Date(), 'HH:mm:ss'));
+                                        setGlobalLastSyncTime(new Date().toLocaleString());
+                                    }
+                                } catch (e) {
+                                    console.error('Feishu sync failed', e);
+                                } finally {
                                     setIsFeishuSyncing(false);
-                                    setShowFeishuConnect(true);
-                                }, 1200);
+                                }
                             }}
                         >
                             <RefreshCw size={16} className={`mr-2 ${isFeishuSyncing ? 'animate-spin' : ''}`} />

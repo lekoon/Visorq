@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate, KeyTaskDefinition, BayResource, MachineResource, BaySize, ProjectTypeDefinition } from '../types';
+import type { Project, FactorDefinition, User, ResourcePoolItem, Notification, Alert, ProjectTemplate, KeyTaskDefinition, BayResource, MachineResource, BaySize, ProjectTypeDefinition, FeishuConfig } from '../types';
 import { calculateProjectScore, rankProjects } from '../utils/algorithm';
 import { createBaseline as createBaselineSnapshot } from '../utils/baselineManagement';
 
@@ -71,6 +71,12 @@ interface StoreState {
     addProjectTypeDefinition: (name: string, color: string) => void;
     updateProjectTypeDefinition: (id: string, updates: Partial<ProjectTypeDefinition>) => void;
     deleteProjectTypeDefinition: (id: string) => void;
+
+    // Feishu Integration
+    feishuConfig: FeishuConfig;
+    setFeishuConfig: (config: FeishuConfig) => void;
+    lastSyncTime: string | null;
+    setLastSyncTime: (time: string | null) => void;
 }
 
 // Default data
@@ -257,6 +263,8 @@ export const useStore = create<StoreState>()(
                 physicalBays: MOCK_BAYS,
                 physicalMachines: MOCK_MACHINES,
                 projectTypeDefinitions: DEFAULT_PROJECT_TYPES,
+                feishuConfig: { appId: '', appSecret: '' },
+                lastSyncTime: null,
 
                 login: (username, role) => set({
                     user: {
@@ -528,6 +536,9 @@ export const useStore = create<StoreState>()(
                 deleteProjectTypeDefinition: (id) => set((state) => ({
                     projectTypeDefinitions: state.projectTypeDefinitions.filter(d => d.id !== id)
                 }), false, 'projectTypes/delete'),
+
+                setFeishuConfig: (config) => set({ feishuConfig: config }, false, 'feishu/setConfig'),
+                setLastSyncTime: (time) => set({ lastSyncTime: time }, false, 'feishu/setLastSyncTime'),
             }),
             {
                 name: 'visorq-storage',
@@ -543,7 +554,9 @@ export const useStore = create<StoreState>()(
                     keyTaskDefinitions: state.keyTaskDefinitions,
                     physicalBays: state.physicalBays,
                     physicalMachines: state.physicalMachines,
-                    projectTypeDefinitions: state.projectTypeDefinitions
+                    projectTypeDefinitions: state.projectTypeDefinitions,
+                    feishuConfig: state.feishuConfig,
+                    lastSyncTime: state.lastSyncTime
                 }),
             }
         ),
@@ -583,3 +596,5 @@ export const useTopProjects = (limit: number = 5) => useStore((state) =>
 );
 
 export const useKeyTaskDefinitions = () => useStore((state) => state.keyTaskDefinitions);
+export const useFeishuConfig = () => useStore((state) => state.feishuConfig);
+export const useLastSyncTime = () => useStore((state) => state.lastSyncTime);
